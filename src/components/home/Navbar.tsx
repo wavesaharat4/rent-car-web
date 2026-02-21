@@ -1,6 +1,7 @@
 "use client"; // เพิ่มบรรทัดนี้เพราะเราอาจจะต้องใช้ Effect หรือ State ในอนาคต
 
 import Link from 'next/link';
+import { ImageResponse } from 'next/server';
 
 export default function Navbar() {
   return (
@@ -12,8 +13,9 @@ export default function Navbar() {
           {/* ฝั่งซ้าย: โลโก้ */}
           <div className="flex items-center">
             <Link href="/" className="text-3xl font-extrabold tracking-tighter flex items-center gap-1.5 group">
-              <span className="text-blue-700 transition-colors duration-300">PhumJai</span>
-              <span className="text-slate-800 transition-colors duration-300">Rent</span>
+              <img src="/phumjailogo.png" alt="logo" className=" h-10 md:h-15 w-auto object-contain"/>
+              <span className="text-blue-800 transition-colors duration-300">PhumJai</span>
+              <span className="text-white transition-colors duration-300">Rent</span>
               {/* ลูกเล่น: จุดสีทองกะพริบ ให้ดูเหมือนระบบทำงานอยู่ */}
               <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse mt-2"></div>
             </Link>
@@ -33,12 +35,12 @@ export default function Navbar() {
               <span className="absolute left-0 bottom-0 w-0 h-0.5 bg-blue-600 transition-all duration-300 group-hover:w-full rounded-full"></span>
             </Link>
 
-            <Link href="/" className="relative text-slate-700 hover:text-blue-700 font-bold text-sm transition-colors py-2 group">
+            <Link href="/promotion" className="relative text-slate-700 hover:text-blue-700 font-bold text-sm transition-colors py-2 group">
               โปรโมชั่น
               <span className="absolute left-0 bottom-0 w-0 h-0.5 bg-blue-600 transition-all duration-300 group-hover:w-full rounded-full"></span>
             </Link>
 
-            <Link href="/" className="relative text-slate-700 hover:text-blue-700 font-bold text-sm transition-colors py-2 group">
+            <Link href="/about" className="relative text-slate-700 hover:text-blue-700 font-bold text-sm transition-colors py-2 group">
               เกี่ยวกับเรา
               <span className="absolute left-0 bottom-0 w-0 h-0.5 bg-blue-600 transition-all duration-300 group-hover:w-full rounded-full"></span>
             </Link>          

@@ -47,14 +47,14 @@ export default function Home() {
           className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: "url('https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?auto=format&fit=crop&w=1920&q=80')" }}
         >
-          <div className="absolute inset-0 bg-blue-950/70 bg-gradient-to-b from-blue-900/60 to-blue-950/90"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-blue-500/60 to-blue-650/90"></div>
         </div>
 
         {/* Hero Text */}
         <div className="relative z-10 text-center px-4 mb-10">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-4 tracking-tight">
-            ยกระดับการเดินทางไปกับ <span className="text-white">PhumJai</span>
-              <span className="text-amber-500"> Rent</span>
+            ยกระดับการเดินทางไปกับ <span className="text-blue-700 transition-colors duration-300">PhumJai</span>
+              <span className="text-slate-800 transition-colors duration-300"> Rent</span>
           </h1>
           <p className="text-lg md:text-xl text-blue-100 max-w-2xl mx-auto font-light">
             บริการรถเช่าระดับพรีเมียม ตอบสนองทุกไลฟ์สไตล์ด้วยรถยนต์คุณภาพสูง พร้อมบริการตลอด 24 ชั่วโมง
