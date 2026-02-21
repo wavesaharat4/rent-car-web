@@ -53,8 +53,8 @@ export default function Home() {
         {/* Hero Text */}
         <div className="relative z-10 text-center px-4 mb-10">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-4 tracking-tight">
-            ยกระดับการเดินทางไปกับ <span className="text-blue-700 transition-colors duration-300">PhumJai</span>
-              <span className="text-slate-800 transition-colors duration-300">Rent</span>
+            ยกระดับการเดินทางไปกับ <span className="text-white">PhumJai</span>
+              <span className="text-amber-500"> Rent</span>
           </h1>
           <p className="text-lg md:text-xl text-blue-100 max-w-2xl mx-auto font-light">
             บริการรถเช่าระดับพรีเมียม ตอบสนองทุกไลฟ์สไตล์ด้วยรถยนต์คุณภาพสูง พร้อมบริการตลอด 24 ชั่วโมง

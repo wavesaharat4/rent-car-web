@@ -114,7 +114,7 @@ export default async function CarDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
 
-              <Link href="/login" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold flex items-center justify-center transition-all shadow-lg shadow-blue-600/30 transform hover:-translate-y-1">
+              <Link href="" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold flex items-center justify-center transition-all shadow-lg shadow-blue-600/30 transform hover:-translate-y-1">
                 ดำเนินการจองรถ
               </Link>
             </div>
