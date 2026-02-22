@@ -17,7 +17,7 @@
     "next-cloudinary": "^6.17.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "recharts": "^3.7.0"
+    "recharts": "^3.7.0",
     "sweetalert2": "^11.26.20",
     "sweetalert2-react-content": "^5.1.1"
   },

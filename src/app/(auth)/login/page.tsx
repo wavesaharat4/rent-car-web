@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+// 1. เพิ่ม getSession ตรงนี้!
+import { signIn, getSession } from "next-auth/react"; 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -13,26 +14,51 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // 2. เอา handleSubmit ตัวใหม่ที่มีการเช็ค Role มาทับตัวเก่า
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
-      // เรียกใช้คำสั่ง signIn ของ NextAuth เพื่อส่งข้อมูลไปเช็คที่ไฟล์ [...nextauth]
       const res = await signIn('credentials', {
         email,
         password,
-        redirect: false, // ปิดการเปลี่ยนหน้าอัตโนมัติ เพื่อให้เราจัดการ Error เองได้
+        redirect: false, 
       });
 
       if (res?.error) {
-        // ถ้ารหัสผิด หรืออีเมลไม่ถูกต้อง จะแสดง Error ตรงนี้
         setError(res.error);
         setLoading(false);
       } else {
-        // ถ้าล็อคอินสำเร็จ ให้เด้งกลับไปหน้าแรก (เดี๋ยว Middleware จะคอยแยกทางลูกค้า/พนักงานให้อีกที)
-        router.push('/');
+        // 1. ขอดูบัตร (Session) จาก NextAuth
+        const session = await getSession();
+        
+        // 2. ดึง Role มา แปลงเป็น string ก่อน แล้วจับทำเป็นตัวใหญ่ทั้งหมด! (ป้องกันบัค admin vs ADMIN)
+        const rawRole = (session?.user as any)?.role || 'CUSTOMER'; 
+        const role = String(rawRole).toUpperCase();
+
+        // 3. ⚠️ จุดสำคัญมาก: เขียนคุกกี้ทิ้งไว้ให้ Middleware ของบอสอ่านด้วย!
+        // ไม่งั้น Middleware จะไม่รู้ว่าคนนี้ยศอะไร
+        document.cookie = `role=${role}; path=/; max-age=86400`; // เก็บไว้ 1 วัน
+
+        // 4. แยกทางตาม Role ที่เป็นตัวใหญ่แล้ว
+        if (role === 'ADMIN') {
+          router.push('/admin/users'); // หรือหน้า dashboard ของ admin
+        } else if (role === 'MANAGER') {
+          router.push('/manager/reports');
+        } else if (role === 'CS') {
+          router.push('/cs/customers');
+        } else if (role === 'PANEL') {
+          router.push('/panel/cars');
+        } else if (role === 'ACCOUNTING') {
+          router.push('/accounting/rentals');
+        } else if (role === 'FINANCE') {
+          router.push('/finance/shop');
+        } else {
+          router.push('/');
+        }
+        
         router.refresh(); 
       }
     } catch (err) {
