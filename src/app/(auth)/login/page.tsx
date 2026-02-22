@@ -18,18 +18,26 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    const res = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
+    try {
+      // เรียกใช้คำสั่ง signIn ของ NextAuth เพื่อส่งข้อมูลไปเช็คที่ไฟล์ [...nextauth]
+      const res = await signIn('credentials', {
+        email,
+        password,
+        redirect: false, // ปิดการเปลี่ยนหน้าอัตโนมัติ เพื่อให้เราจัดการ Error เองได้
+      });
 
-    if (res?.error) {
-      setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+      if (res?.error) {
+        // ถ้ารหัสผิด หรืออีเมลไม่ถูกต้อง จะแสดง Error ตรงนี้
+        setError(res.error);
+        setLoading(false);
+      } else {
+        // ถ้าล็อคอินสำเร็จ ให้เด้งกลับไปหน้าแรก (เดี๋ยว Middleware จะคอยแยกทางลูกค้า/พนักงานให้อีกที)
+        router.push('/');
+        router.refresh(); 
+      }
+    } catch (err) {
+      setError('เกิดข้อผิดพลาดบางอย่าง กรุณาลองใหม่อีกครั้ง');
       setLoading(false);
-    } else {
-      router.refresh();
-      router.push("/");
     }
   };
 

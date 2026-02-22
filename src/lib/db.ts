@@ -1,13 +1,22 @@
-// ไฟล์: lib/db.ts
 import mysql from 'mysql2/promise';
 
-export const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: parseInt(process.env.DB_PORT || '3306'),
+// ดึงค่ามาจากไฟล์ .env ที่เราตั้งไว้
+const dbConfig = {
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'phumjairent_db',
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: 10, // จำนวนการเชื่อมต่อพร้อมกันสูงสุด
   queueLimit: 0,
-});
+};
+
+// ทริคสำคัญสำหรับ Next.js: ป้องกันการสร้าง Connection ซ้ำซ้อนตอนที่ระบบรีเฟรชตัวเอง (Hot Reload)
+const globalForMySQL = global as unknown as { mysqlPool: mysql.Pool };
+
+// สร้าง Connection Pool
+export const db = globalForMySQL.mysqlPool || mysql.createPool(dbConfig);
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForMySQL.mysqlPool = db;
+}
