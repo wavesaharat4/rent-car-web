@@ -43,7 +43,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-[400px] bg-white p-10 rounded-2xl shadow-sm border border-slate-100">
+      <div className="w-full max-w-[400px] bg-white p-10 rounded-2xl shadow-sm border border-slate-100 relative">
         {/* Header */}
         <div className="mb-8">
           <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight text-center">เข้าสู่ระบบ</h2>
@@ -131,7 +131,7 @@ export default function LoginPage() {
         </form>
 
         {/* Footer */}
-        <div className="mt-10 text-center">
+        <div className="mt-8 text-center pb-6 border-b border-slate-100">
           <p className="text-sm text-slate-500">
             ยังไม่มีบัญชี?{" "}
             <Link href="/register" className="font-bold text-blue-600 hover:text-blue-700 transition-colors ml-1">
@@ -139,6 +139,20 @@ export default function LoginPage() {
             </Link>
           </p>
         </div>
+
+        {/* MOCK LOGIN SECTION FOR EMPLOYEE PANEL TESTING */}
+        <div className="mt-6">
+          <p className="text-xs font-bold text-slate-400 text-center mb-4 uppercase tracking-widest">จำลองเข้าก่อนจ้า ค่อยลบนะจะไอเติ้ล</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => { document.cookie = "role=ADMIN; path=/;"; router.push("/admin/users"); }} className="text-[10px] font-bold bg-purple-100 text-purple-700 py-2 rounded-lg hover:bg-purple-200 transition border border-purple-200">เข้าสู่ระบบ ADMIN</button>
+            <button onClick={() => { document.cookie = "role=MANAGER; path=/;"; router.push("/manager/reports"); }} className="text-[10px] font-bold bg-blue-100 text-blue-700 py-2 rounded-lg hover:bg-blue-200 transition border border-blue-200">เข้าสู่ระบบ MANAGER</button>
+            <button onClick={() => { document.cookie = "role=CS; path=/;"; router.push("/cs/customers"); }} className="text-[10px] font-bold bg-emerald-100 text-emerald-700 py-2 rounded-lg hover:bg-emerald-200 transition border border-emerald-200">เข้าสู่ระบบ CS</button>
+            <button onClick={() => { document.cookie = "role=PANEL; path=/;"; router.push("/panel/cars"); }} className="text-[10px] font-bold bg-indigo-100 text-indigo-700 py-2 rounded-lg hover:bg-indigo-200 transition border border-indigo-200">เข้าสู่ระบบ PANEL</button>
+            <button onClick={() => { document.cookie = "role=ACCOUNTING; path=/;"; router.push("/accounting/rentals"); }} className="text-[10px] font-bold bg-amber-100 text-amber-700 py-2 rounded-lg hover:bg-amber-200 transition border border-amber-200">เข้าสู่ระบบ ACCOUNTING</button>
+            <button onClick={() => { document.cookie = "role=FINANCE; path=/;"; router.push("/finance/shop"); }} className="text-[10px] font-bold bg-pink-100 text-pink-700 py-2 rounded-lg hover:bg-pink-200 transition border border-pink-200">เข้าสู่ระบบ FINANCE</button>
+          </div>
+        </div>
+
       </div>
     </div>
   );
