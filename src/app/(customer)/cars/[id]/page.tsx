@@ -22,7 +22,7 @@ const allCars: CarDetail[] = [
 
 // 🟢 อัปเดตให้รองรับ Next.js 15 โดยใส่ async และ Promise
 export default async function CarDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  
+
   // รอแกะค่า id ออกมาจาก URL
   const resolvedParams = await params;
   const carId = parseInt(resolvedParams.id);
@@ -37,7 +37,7 @@ export default async function CarDetailPage({ params }: { params: Promise<{ id: 
   return (
     <div className="bg-slate-50 min-h-screen pt-28 pb-20 font-sans text-blue-950">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* Breadcrumb (ลิงก์ย้อนกลับ) */}
         <div className="mb-6 flex items-center text-sm font-medium text-slate-500">
           <Link href="/" className="hover:text-blue-600 transition-colors">หน้าหลัก</Link>
@@ -49,7 +49,7 @@ export default async function CarDetailPage({ params }: { params: Promise<{ id: 
 
         {/* ส่วนแสดงข้อมูลหลัก (แบ่ง 2 ฝั่ง ซ้ายรูป ขวารายละเอียด) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          
+
           {/* ฝั่งซ้าย: รูปภาพรถ */}
           <div className="lg:col-span-2 space-y-4">
             <div className="rounded-3xl overflow-hidden shadow-lg border border-blue-100 bg-white aspect-[16/10] relative">
@@ -58,14 +58,14 @@ export default async function CarDetailPage({ params }: { params: Promise<{ id: 
                 {car.brand}
               </div>
             </div>
-            
+
             {/* ข้อมูลทั่วไป */}
             <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-blue-100 mt-6">
               <h2 className="text-2xl font-extrabold text-blue-950 mb-4">รายละเอียดรถยนต์</h2>
               <p className="text-slate-600 leading-relaxed font-light mb-8">
                 {car.description}
               </p>
-              
+
               {/* สเปกรถแบบ Grid */}
               <h3 className="text-lg font-bold text-blue-950 mb-4">ข้อมูลจำเพาะ (Specifications)</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -73,7 +73,7 @@ export default async function CarDetailPage({ params }: { params: Promise<{ id: 
                   <span className="text-xs text-slate-500 font-medium mb-1">จำนวนที่นั่ง</span>
                   <span className="text-sm font-bold text-blue-950">{car.seats} ที่นั่ง</span>
                 </div>
-                
+
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center justify-center text-center">
                   <span className="text-xs text-slate-500 font-medium mb-1">ระบบเกียร์</span>
                   <span className="text-sm font-bold text-blue-950">{car.transmission}</span>
@@ -97,7 +97,7 @@ export default async function CarDetailPage({ params }: { params: Promise<{ id: 
             <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xl shadow-blue-900/5 border border-blue-100">
               <h1 className="text-3xl font-extrabold text-blue-950 mb-2">{car.name}</h1>
               <p className="text-blue-600 font-bold uppercase tracking-wider text-sm mb-6">{car.type} Class</p>
-              
+
               <div className="flex items-end gap-2 mb-6 pb-6 border-b border-slate-100">
                 <span className="text-4xl font-extrabold text-blue-950">฿{car.price}</span>
                 <span className="text-slate-500 font-medium mb-1">/ วัน</span>
@@ -114,7 +114,10 @@ export default async function CarDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
 
-              <Link href="" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold flex items-center justify-center transition-all shadow-lg shadow-blue-600/30 transform hover:-translate-y-1">
+              <Link
+                href="/checkout"
+                className="block w-full text-center bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30"
+              >
                 ดำเนินการจองรถ
               </Link>
             </div>
