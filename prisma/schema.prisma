@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model customer {
+  id             Int              @id @default(autoincrement())
+  first_name     String           @db.VarChar(100)
+  last_name      String           @db.VarChar(100)
+  email          String           @unique(map: "email") @db.VarChar(150)
+  password       String           @db.VarChar(255)
+  phone          String           @db.VarChar(10)
+  birth_date     DateTime         @db.Date
+  passport_no    String?          @unique(map: "passport_no") @db.VarChar(50)
+  driver_license String?          @db.VarChar(50)
+  address        String?          @db.Text
+  status         customer_status? @default(active)
+  created_at     DateTime?        @default(now()) @db.Timestamp(0)
+  updated_at     DateTime?        @default(now()) @db.Timestamp(0)
+
+  resetToken       String?   @db.VarChar(10)
+  resetTokenExpiry DateTime? @db.DateTime(0)
+}
+
+model employee {
+  id         Int              @id @default(autoincrement())
+  first_name String           @db.VarChar(100)
+  last_name  String           @db.VarChar(100)
+  email      String           @unique(map: "email") @db.VarChar(150)
+  password   String           @db.VarChar(255)
+  phone      String           @db.VarChar(20)
+  birth_date DateTime         @db.Date
+  role       employee_role?   @default(staff)
+  status     employee_status? @default(active)
+  created_at DateTime?        @default(now()) @db.Timestamp(0)
+  updated_at DateTime?        @default(now()) @db.Timestamp(0)
+}
+
+enum employee_role {
+  admin
+  manager
+  staff
+}
+
+enum employee_status {
+  active
+  inactive
+}
+
+enum customer_status {
+  active
+  inactive
+  banned
+}
