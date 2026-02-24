@@ -1,33 +1,33 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { db } from "@/lib/db";
 
 export async function POST(req: Request) {
     try {
         const { contact, otp, newPassword } = await req.json();
 
-        const customer = await prisma.customer.findFirst({
-            where: { OR: [{ email: contact }, { phone: contact }] }
-        });
+        // 1. เช็คก่อนว่า OTP ยังถูกอยู่ไหม (กันคนยิง API มั่วๆ)
+        const querySearch = "SELECT * FROM customer WHERE (cusMail = ? OR cusPhone = ?) AND resetToken = ?";
+        const [rows]: any = await db.query(querySearch, [contact, contact, otp]);
 
-        if (!customer || customer.resetToken !== otp) {
-            return NextResponse.json({ message: "คำขอไม่ถูกต้อง" }, { status: 400 });
+        if (rows.length === 0) {
+            return NextResponse.json({ message: "ข้อมูลไม่ถูกต้อง หรือ OTP หมดอายุ" }, { status: 400 });
         }
 
-        //const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const customer = rows[0];
 
-        await prisma.customer.update({
-            where: { id: customer.id },
-            data: {
-                password: newPassword, // บันทึกรหัสจริงลงไป
-                resetToken: null,
-                resetTokenExpiry: null
-            }
-        });
+        // 2. อัปเดตรหัสผ่านใหม่ และล้าง OTP ทิ้ง
+        const queryUpdate = `
+            UPDATE customer 
+            SET cusPass = ?, resetToken = NULL, resetTokenExpiry = NULL 
+            WHERE cusID = ?
+        `;
+        
+        await db.query(queryUpdate, [newPassword, customer.cusID]);
 
         return NextResponse.json({ message: "เปลี่ยนรหัสผ่านสำเร็จ" });
+
     } catch (error) {
-        return NextResponse.json({ message: "เกิดข้อผิดพลาด" }, { status: 500 });
+        console.error("Reset Error:", error);
+        return NextResponse.json({ message: "เกิดข้อผิดพลาดในการเปลี่ยนรหัส" }, { status: 500 });
     }
 }
