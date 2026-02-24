@@ -1,6 +1,6 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { db } from "@/lib/db"; // นำเข้าตัวเชื่อมต่อฐานข้อมูล
+import { db } from "@/lib/db"; 
 import { RowDataPacket } from "mysql2";
 
 export const authOptions: NextAuthOptions = {
@@ -17,50 +17,51 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // 1. ค้นหาในตารางลูกค้า (customer) ก่อน
+          // 1. ค้นหาในตารางลูกค้า (เปลี่ยน email เป็น cusMail)
           const [customerRows] = await db.query<RowDataPacket[]>(
-            "SELECT * FROM customer WHERE email = ?",
+            "SELECT * FROM customer WHERE cusMail = ?",
             [credentials.email]
           );
 
           if (customerRows.length > 0) {
             const user = customerRows[0];
             
-            // ตรวจสอบรหัสผ่านแบบปกติ (Plain text)  
-            if (credentials.password === user.password) {
+            // ตรวจสอบรหัสผ่าน (เปลี่ยน password เป็น cusPass)
+            if (credentials.password === user.cusPass) {
               return {
-                id: user.id.toString(),
-                name: `${user.first_name} ${user.last_name}`,
-                email: user.email,
-                role: "customer", 
+                id: user.cusID.toString(), // เปลี่ยน id เป็น cusID
+                name: `${user.cusFN} ${user.cusLN}`, // เปลี่ยนชื่อ-สกุล
+                email: user.cusMail, // เปลี่ยน email
+                role: "CUSTOMER", 
               };
             } else {
               throw new Error("รหัสผ่านไม่ถูกต้อง");
             }
           }
 
-          // 2. ถ้าไม่เจอลูกค้า 
+          // 2. ถ้าไม่เจอลูกค้า ให้หาในตารางพนักงาน (เปลี่ยน email เป็น empMail)
           const [employeeRows] = await db.query<RowDataPacket[]>(
-            "SELECT * FROM employee WHERE email = ?",
+            "SELECT * FROM employee WHERE empMail = ?",
             [credentials.email]
           );
 
           if (employeeRows.length > 0) {
             const emp = employeeRows[0];
 
-            if (credentials.password === emp.password) {
+            // ตรวจสอบรหัสผ่าน (เปลี่ยน password เป็น empPass)
+            if (credentials.password === emp.empPass) {
               return {
-                id: emp.id.toString(),
-                name: `${emp.first_name} ${emp.last_name}`,
-                email: emp.email,
-                role: emp.role, // แปะป้ายบอกระบบตามตำแหน่ง เช่น admin, manager, staff
+                id: emp.empID.toString(), // เปลี่ยน id เป็น empID
+                name: `${emp.empFN} ${emp.empLN}`, // เปลี่ยนชื่อ-สกุล
+                email: emp.empMail, // เปลี่ยน email
+                role: emp.empRole.toUpperCase(), // เปลี่ยน role เป็น empRole
               };
             } else {
               throw new Error("รหัสผ่านไม่ถูกต้อง");
             }
           }
 
-          // 3. ถ้าไม่เจอทั้งใน customer และ employees
+          // 3. ถ้าไม่เจอทั้งคู่
           throw new Error("ไม่พบข้อมูลผู้ใช้งานในระบบ");
 
         } catch (error: any) {
@@ -70,7 +71,6 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   callbacks: {
-    // นำเอา role ที่เราแปะป้ายไว้ ยัดใส่เข้าไปใน Token
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
@@ -78,7 +78,6 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
-    // ถอดรหัส Token ส่งข้อมูลออกมาให้ฝั่งหน้าเว็บ (Frontend) เอาไปใช้งาน
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = token.id;
@@ -88,7 +87,7 @@ export const authOptions: NextAuthOptions = {
     }
   },
   pages: {
-    signIn: "/login", // บอก NextAuth ว่าหน้าล็อกอินของเราอยู่ที่นี่
+    signIn: "/login",
   },
   session: {
     strategy: "jwt",

@@ -46,7 +46,7 @@ export default function RegisterPage() {
           title: "สมัครสมาชิกสำเร็จ!",
           text: "ยินดีต้อนรับสู่ PhumJaiRent ระบบกำลังพาท่านไปหน้าเข้าสู่ระบบ",
           icon: "success",
-          timer: 2000, // แสดง 2 วินาที
+          timer: 5000, // แสดง 5 วินาที
           showConfirmButton: false,
           timerProgressBar: true,
           iconColor: '#2563eb', // สีน้ำเงินตามธีม
