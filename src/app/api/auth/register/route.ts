@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
 // import bcrypt from "bcryptjs"; // ปิดไว้ก่อน เพื่อให้ล็อคอินด้วยโค้ดเดิมได้
-import { db } from "@/lib/db"; // ดึงจากไฟล์ db.ts ที่เราสร้างไว้
+import { db } from "@/lib/db"; 
 
 export async function POST(req: Request) {
   try {
     const { name, email, password, phone, birthDate } = await req.json();
 
-    // แยก ชื่อ-นามสกุล ออกจากกัน (ถ้าพิมพ์มาคำเดียว นามสกุลจะเป็นขีด)
     const nameParts = name.trim().split(" ");
     const firstName = nameParts[0];
     const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "-";
 
-    // 1. ตรวจสอบว่าอีเมลซ้ำหรือไม่ (ค้นหาในตาราง customer)
+    // 1. ตรวจสอบว่าอีเมลซ้ำหรือไม่ (เปลี่ยน id เป็น cusID, email เป็น cusMail)
     const [rows]: any = await db.execute(
-      'SELECT id FROM customer WHERE email = ?',
+      'SELECT cusID FROM customer WHERE cusMail = ?',
       [email]
     );
 
@@ -21,13 +20,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "อีเมลนี้มีในระบบแล้ว กรุณาใช้อีเมลอื่น" }, { status: 400 });
     }
 
-    // 2. รหัสผ่าน (ใช้แบบปกติไปก่อนตามหน้า Login ที่เราเขียนไว้)
-    // ของจริงค่อยเปิดใช้: const hashedPassword = await bcrypt.hash(password, 10);
     const hashedPassword = password;
 
-    // 3. บันทึกข้อมูลลงฐานข้อมูล (ตาราง customer)
+    // 3. บันทึกข้อมูลลงฐานข้อมูล (เปลี่ยนชื่อคอลัมน์ให้ตรงกับ DB ใหม่)
     await db.execute(
-      'INSERT INTO customer (first_name, last_name, email, password, phone, birth_date) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO customer (cusFN, cusLN, cusMail, cusPass, cusPhone, cusDOB) VALUES (?, ?, ?, ?, ?, ?)',
       [firstName, lastName, email, hashedPassword, phone, birthDate]
     );
 
