@@ -1,68 +1,427 @@
 "use client";
 
-import { Wrench, Edit, ShieldAlert, Plus, Save } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Wrench, ShieldAlert, Plus, Save, RefreshCw, X } from "lucide-react";
 
-const mockCarsDetail = [
-    { id: "CAR-001", brand: "Toyota Yaris Ativ", plate: "1กข-1234 กทม.", odo: "45,000 km", prevMaint: "2025-10-10", nextMaint: "2026-04-10" },
-    { id: "CAR-002", brand: "Honda Civic RS", plate: "9ฮฮ-9999 กทม.", odo: "12,000 km", prevMaint: "2026-01-05", nextMaint: "2026-07-05" },
-];
+type CarRow = {
+  carID: number;
+  empID: number;
+  carBrand: string | null;
+  carType: string | null;
+  carSeat: number | null;
+  carGear: string | null;
+  carPower: string | null;
+  carDetail: string | null;
+  carQuantity: number | null;
+  carPrice: number | null;
+  carProvince: string | null;
+  carVIN: number | null;
+  carPicture: string | null;
+  carStatus: string | null;
+};
+
+const s = (v: any) => (v == null ? "" : String(v));
+const numOrNull = (v: string) => {
+  const t = v.trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+};
+
+const toNumOrNull = (v: any) => (v == null || v === "" ? null : Number(v));
+const toNum = (v: any) => Number(v);
 
 export default function PanelCarsPage() {
-    return (
-        <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                        <Wrench className="text-blue-600" size={32} />
-                        จัดการรายละเอียดรถ (Vehicle Panel)
-                    </h1>
-                    <p className="text-slate-500 text-sm mt-2 font-medium">ดูและแก้ไขข้อมูลเชิงลึกของรถ เช่น เลขไมล์, ป้ายทะเบียน, ระยะซ่อมบำรุงเด้อ</p>
-                </div>
-                <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold transition shadow-md whitespace-nowrap">
-                    <Plus size={18} /> ลงทะเบียนรถใหม่
-                </button>
+  const [cars, setCars] = useState<CarRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [savingId, setSavingId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [extra, setExtra] = useState<Record<number, { odo?: string; nextMaint?: string }>>({});
+  const [openAdd, setOpenAdd] = useState(false);
+  const [newCar, setNewCar] = useState({
+    empID: "",
+    carBrand: "",
+    carProvince: "",
+    carVIN: "",
+    carPrice: "",
+    carQuantity: "",
+  });
+
+  const activeCars = useMemo(
+    () => cars.filter((c) => (c.carStatus ?? "ACTIVE") !== "RETIRED"),
+    [cars]
+  );
+
+  async function loadCars() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/cars", { cache: "no-store" });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message || "โหลดข้อมูลไม่สำเร็จ");
+
+      // ✅ normalize: กัน carID/empID เป็น string หรือ null
+      const normalized: CarRow[] = (json.data ?? []).map((r: any) => ({
+        carID: toNum(r.carID),
+        empID: toNum(r.empID),
+        carBrand: r.carBrand ?? null,
+        carType: r.carType ?? null,
+        carSeat: r.carSeat == null ? null : toNum(r.carSeat),
+        carGear: r.carGear ?? null,
+        carPower: r.carPower ?? null,
+        carDetail: r.carDetail ?? null,
+        carQuantity: toNumOrNull(r.carQuantity),
+        carPrice: toNumOrNull(r.carPrice),
+        carProvince: r.carProvince ?? null,
+        carVIN: toNumOrNull(r.carVIN),
+        carPicture: r.carPicture ?? null,
+        carStatus: r.carStatus ?? null,
+      }));
+
+      setCars(normalized);
+    } catch (e: any) {
+      setError(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadCars();
+  }, []);
+
+  function updateCarLocal(carID: number, patch: Partial<CarRow>) {
+    setCars((prev) => prev.map((c) => (c.carID === carID ? { ...c, ...patch } : c)));
+  }
+
+  async function saveCar(car: CarRow) {
+    const id = parseInt(String((car as any).carID), 10);
+    if (Number.isNaN(id)) {
+      setError(`carID ไม่ถูกต้อง (หน้าเว็บ): ${String((car as any).carID)}`);
+      return;
+    }
+
+    setSavingId(id);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/cars/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          empID: car.empID,
+          carBrand: car.carBrand,
+          carType: car.carType,
+          carSeat: car.carSeat,
+          carGear: car.carGear,
+          carPower: car.carPower,
+          carDetail: car.carDetail,
+          carQuantity: car.carQuantity,
+          carPrice: car.carPrice,
+          carProvince: car.carProvince,
+          carVIN: car.carVIN,
+          carPicture: car.carPicture,
+          carStatus: car.carStatus,
+        }),
+      });
+
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message || "บันทึกไม่สำเร็จ");
+    } catch (e: any) {
+      setError(e?.message ?? "บันทึกไม่สำเร็จ");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function retireCar(carID: number) {
+    const id = parseInt(String(carID), 10);
+    if (Number.isNaN(id)) {
+      setError(`carID ไม่ถูกต้อง (หน้าเว็บ): ${String(carID)}`);
+      return;
+    }
+
+    setError(null);
+    updateCarLocal(id, { carStatus: "RETIRED" });
+
+    try {
+      const res = await fetch(`/api/cars/${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message || "ปลดระวางไม่สำเร็จ");
+    } catch (e: any) {
+      updateCarLocal(id, { carStatus: "ACTIVE" });
+      setError(e?.message ?? "ปลดระวางไม่สำเร็จ");
+    }
+  }
+
+  async function addCar() {
+    setError(null);
+    try {
+      const payload = {
+        empID: Number(newCar.empID),
+        carBrand: newCar.carBrand || null,
+        carProvince: newCar.carProvince || null,
+        carVIN: numOrNull(newCar.carVIN),
+        carPrice: numOrNull(newCar.carPrice),
+        carQuantity: numOrNull(newCar.carQuantity),
+        carStatus: "ACTIVE",
+      };
+
+      if (!Number.isFinite(payload.empID)) {
+        throw new Error("กรอก empID เป็นตัวเลขก่อนเด้อ");
+      }
+
+      const res = await fetch("/api/cars", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message || "เพิ่มรถไม่สำเร็จ");
+
+      setOpenAdd(false);
+      setNewCar({ empID: "", carBrand: "", carProvince: "", carVIN: "", carPrice: "", carQuantity: "" });
+      await loadCars();
+    } catch (e: any) {
+      setError(e?.message ?? "เพิ่มรถไม่สำเร็จ");
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <Wrench className="text-blue-600" size={32} />
+            จัดการรายละเอียดรถ (Vehicle Panel)
+          </h1>
+          <p className="text-slate-500 text-sm mt-2 font-medium">
+            ดึงจาก DB จริง แก้ไข/บันทึก/ปลดระวางได้เลย (ODO/เช็คระยะเป็นข้อมูลเสริมจนกว่าจะเพิ่มคอลัมน์ใน DB)
+          </p>
+
+          {error && (
+            <div className="mt-3 text-sm font-bold text-rose-600 bg-rose-50 border border-rose-200 px-3 py-2 rounded-xl">
+              {error}
             </div>
-
-            <div className="grid grid-cols-1 gap-6">
-                {mockCarsDetail.map((car) => (
-                    <div key={car.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col md:flex-row gap-6 md:items-center">
-
-                        {/* ข้อมูลพื้นฐาน รถ */}
-                        <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-3">
-                                <span className="bg-slate-100 text-slate-500 px-2.5 py-1 text-xs font-black rounded">{car.id}</span>
-                                <h3 className="font-black text-xl text-slate-800">{car.brand}</h3>
-                            </div>
-                            <div className="inline-block border-2 border-slate-800 rounded-md bg-white">
-                                <div className="px-4 py-1.5 font-bold tracking-widest text-slate-800 text-lg border-b border-slate-200 text-center">{car.plate.split(' ')[0]}</div>
-                                <div className="px-4 py-0.5 text-[10px] font-bold text-center bg-slate-50 text-slate-600">{car.plate.split(' ')[1]}</div>
-                            </div>
-                        </div>
-
-                        {/* ฟอร์มแก้ไขอย่างด่วน (ดุเดือดสไตล์ Panel) */}
-                        <div className="flex-1 grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">เลขไมล์สะสม (ODO)</label>
-                                <input type="text" defaultValue={car.odo} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">วันเช็คระยะครั้งถัดไป</label>
-                                <input type="date" defaultValue={car.nextMaint} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700" />
-                            </div>
-                        </div>
-
-                        {/* ปุ่ม Action */}
-                        <div className="md:w-32 flex flex-col gap-2">
-                            <button className="w-full flex justify-center items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-bold transition shadow-sm">
-                                <Save size={16} /> บันทึก
-                            </button>
-                            <button className="w-full flex justify-center items-center gap-2 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 hover:border-rose-300 py-2.5 rounded-xl text-sm font-bold transition">
-                                <ShieldAlert size={16} /> ปลดระวาง
-                            </button>
-                        </div>
-                    </div>
-                ))}
-            </div>
+          )}
         </div>
-    );
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadCars}
+            className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl font-bold transition whitespace-nowrap"
+          >
+            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+            รีเฟรช
+          </button>
+
+          <button
+            onClick={() => setOpenAdd(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold transition shadow-md whitespace-nowrap"
+          >
+            <Plus size={18} /> ลงทะเบียนรถใหม่
+          </button>
+        </div>
+      </div>
+
+      {openAdd && (
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between">
+            <h2 className="font-black text-slate-800 text-lg">ลงทะเบียนรถใหม่</h2>
+            <button
+              onClick={() => setOpenAdd(false)}
+              className="flex items-center gap-2 text-slate-500 hover:text-slate-700 font-bold"
+            >
+              <X size={18} /> ปิด
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">empID *</label>
+              <input
+                value={newCar.empID}
+                onChange={(e) => setNewCar((p) => ({ ...p, empID: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">ยี่ห้อ/รุ่น</label>
+              <input
+                value={newCar.carBrand}
+                onChange={(e) => setNewCar((p) => ({ ...p, carBrand: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">จังหวัด</label>
+              <input
+                value={newCar.carProvince}
+                onChange={(e) => setNewCar((p) => ({ ...p, carProvince: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">VIN</label>
+              <input
+                value={newCar.carVIN}
+                onChange={(e) => setNewCar((p) => ({ ...p, carVIN: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">ราคา/วัน</label>
+              <input
+                value={newCar.carPrice}
+                onChange={(e) => setNewCar((p) => ({ ...p, carPrice: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">จำนวนรถ</label>
+              <input
+                value={newCar.carQuantity}
+                onChange={(e) => setNewCar((p) => ({ ...p, carQuantity: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+          </div>
+
+          <div className="mt-5 flex justify-end">
+            <button
+              onClick={addCar}
+              className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold transition shadow-sm"
+            >
+              <Save size={16} /> เพิ่มรถ
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6">
+        {activeCars.map((car) => {
+          const carTag = `CAR-${String(car.carID).padStart(3, "0")}`;
+          const plateTop = carTag;
+          const plateBottom = car.carProvince ?? "-";
+
+          return (
+            <div
+              key={car.carID}
+              className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col md:flex-row gap-6 md:items-center"
+            >
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-3">
+                  <span className="bg-slate-100 text-slate-500 px-2.5 py-1 text-xs font-black rounded">
+                    {carTag}
+                  </span>
+                  <h3 className="font-black text-xl text-slate-800">{car.carBrand ?? "-"}</h3>
+                </div>
+
+                <div className="inline-block border-2 border-slate-800 rounded-md bg-white">
+                  <div className="px-4 py-1.5 font-bold tracking-widest text-slate-800 text-lg border-b border-slate-200 text-center">
+                    {plateTop}
+                  </div>
+                  <div className="px-4 py-0.5 text-[10px] font-bold text-center bg-slate-50 text-slate-600">
+                    {plateBottom}
+                  </div>
+                </div>
+
+                <div className="text-xs font-bold text-slate-500">
+                  VIN: <span className="text-slate-700">{car.carVIN ?? "-"}</span> • ราคา/วัน:{" "}
+                  <span className="text-slate-700">{car.carPrice ?? "-"}</span> • คงเหลือ:{" "}
+                  <span className="text-slate-700">{car.carQuantity ?? "-"}</span>
+                </div>
+              </div>
+
+              <div className="flex-1 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    ยี่ห้อ/รุ่น (carBrand)
+                  </label>
+                  <input
+                    type="text"
+                    value={s(car.carBrand)}
+                    onChange={(e) => updateCarLocal(car.carID, { carBrand: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    จังหวัด (carProvince)
+                  </label>
+                  <input
+                    type="text"
+                    value={s(car.carProvince)}
+                    onChange={(e) => updateCarLocal(car.carID, { carProvince: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    เลขไมล์สะสม (ODO) *ยังไม่ผูก DB*
+                  </label>
+                  <input
+                    type="text"
+                    value={extra[car.carID]?.odo ?? ""}
+                    onChange={(e) =>
+                      setExtra((p) => ({ ...p, [car.carID]: { ...p[car.carID], odo: e.target.value } }))
+                    }
+                    placeholder="เช่น 45,000 km"
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    วันเช็คระยะครั้งถัดไป *ยังไม่ผูก DB*
+                  </label>
+                  <input
+                    type="date"
+                    value={extra[car.carID]?.nextMaint ?? ""}
+                    onChange={(e) =>
+                      setExtra((p) => ({ ...p, [car.carID]: { ...p[car.carID], nextMaint: e.target.value } }))
+                    }
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+              </div>
+
+              <div className="md:w-32 flex flex-col gap-2">
+                <button
+                  onClick={() => saveCar(car)}
+                  disabled={savingId === car.carID}
+                  className="w-full flex justify-center items-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed text-white py-2.5 rounded-xl text-sm font-bold transition shadow-sm"
+                >
+                  <Save size={16} /> {savingId === car.carID ? "กำลังบันทึก..." : "บันทึก"}
+                </button>
+
+                <button
+                  onClick={() => retireCar(car.carID)}
+                  className="w-full flex justify-center items-center gap-2 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 hover:border-rose-300 py-2.5 rounded-xl text-sm font-bold transition"
+                >
+                  <ShieldAlert size={16} /> ปลดระวาง
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {!loading && activeCars.length === 0 && (
+          <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center">
+            <div className="font-black text-slate-800 text-lg">ยังไม่มีรถในระบบ</div>
+            <div className="text-slate-500 text-sm font-bold mt-1">กด “ลงทะเบียนรถใหม่” เพื่อเพิ่มรถ</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
