@@ -6,6 +6,7 @@ import { Wrench, ShieldAlert, Plus, Save, RefreshCw, X } from "lucide-react";
 type CarRow = {
   carID: number;
   empID: number;
+  carPlate: string | null;
   carBrand: string | null;
   carType: string | null;
   carSeat: number | null;
@@ -21,12 +22,17 @@ type CarRow = {
 };
 
 const s = (v: any) => (v == null ? "" : String(v));
+const textOrNull = (v: string) => {
+  const t = v.trim();
+  return t ? t : null;
+};
 const numOrNull = (v: string) => {
   const t = v.trim();
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
 };
+const isDigitsOnly = (v: string) => /^\d+$/.test(v.trim());
 
 const toNumOrNull = (v: any) => (v == null || v === "" ? null : Number(v));
 const toNum = (v: any) => Number(v);
@@ -41,7 +47,13 @@ export default function PanelCarsPage() {
   const [openAdd, setOpenAdd] = useState(false);
   const [newCar, setNewCar] = useState({
     empID: "",
+    carPlate: "",
     carBrand: "",
+    carType: "",
+    carSeat: "",
+    carGear: "",
+    carPower: "",
+    carDetail: "",
     carProvince: "",
     carVIN: "",
     carPrice: "",
@@ -49,9 +61,10 @@ export default function PanelCarsPage() {
   });
 
   const activeCars = useMemo(
-    () => cars.filter((c) => (c.carStatus ?? "ACTIVE") !== "RETIRED"),
+    () => cars.filter((c) => (c.carStatus ?? "").toLowerCase() !== "retired"),
     [cars]
   );
+  const isNewCarVinInvalid = !isDigitsOnly(newCar.carVIN);
 
   async function loadCars() {
     setLoading(true);
@@ -65,6 +78,7 @@ export default function PanelCarsPage() {
       const normalized: CarRow[] = (json.data ?? []).map((r: any) => ({
         carID: toNum(r.carID),
         empID: toNum(r.empID),
+        carPlate: r.carPlate ?? null,
         carBrand: r.carBrand ?? null,
         carType: r.carType ?? null,
         carSeat: r.carSeat == null ? null : toNum(r.carSeat),
@@ -101,6 +115,10 @@ export default function PanelCarsPage() {
       setError(`carID ไม่ถูกต้อง (หน้าเว็บ): ${String((car as any).carID)}`);
       return;
     }
+    if (car.carVIN != null && !Number.isFinite(Number(car.carVIN))) {
+      setError("carVIN ต้องเป็นตัวเลขเท่านั้น");
+      return;
+    }
 
     setSavingId(id);
     setError(null);
@@ -111,6 +129,7 @@ export default function PanelCarsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           empID: car.empID,
+          carPlate: car.carPlate,
           carBrand: car.carBrand,
           carType: car.carType,
           carSeat: car.carSeat,
@@ -143,14 +162,14 @@ export default function PanelCarsPage() {
     }
 
     setError(null);
-    updateCarLocal(id, { carStatus: "RETIRED" });
+    updateCarLocal(id, { carStatus: "Retired" });
 
     try {
       const res = await fetch(`/api/cars/${id}`, { method: "DELETE" });
       const json = await res.json();
       if (!json.ok) throw new Error(json.message || "ปลดระวางไม่สำเร็จ");
     } catch (e: any) {
-      updateCarLocal(id, { carStatus: "ACTIVE" });
+      updateCarLocal(id, { carStatus: "Available" });
       setError(e?.message ?? "ปลดระวางไม่สำเร็จ");
     }
   }
@@ -158,14 +177,24 @@ export default function PanelCarsPage() {
   async function addCar() {
     setError(null);
     try {
+      if (isNewCarVinInvalid) {
+        throw new Error("carVIN ต้องเป็นตัวเลขเท่านั้น และห้ามเว้นว่าง");
+      }
+
       const payload = {
         empID: Number(newCar.empID),
-        carBrand: newCar.carBrand || null,
-        carProvince: newCar.carProvince || null,
-        carVIN: numOrNull(newCar.carVIN),
+        carPlate: textOrNull(newCar.carPlate),
+        carBrand: textOrNull(newCar.carBrand),
+        carType: textOrNull(newCar.carType),
+        carSeat: numOrNull(newCar.carSeat),
+        carGear: textOrNull(newCar.carGear),
+        carPower: textOrNull(newCar.carPower),
+        carDetail: textOrNull(newCar.carDetail),
+        carProvince: textOrNull(newCar.carProvince),
+        carVIN: Number(newCar.carVIN.trim()),
         carPrice: numOrNull(newCar.carPrice),
         carQuantity: numOrNull(newCar.carQuantity),
-        carStatus: "ACTIVE",
+        carStatus: "Available",
       };
 
       if (!Number.isFinite(payload.empID)) {
@@ -182,7 +211,20 @@ export default function PanelCarsPage() {
       if (!json.ok) throw new Error(json.message || "เพิ่มรถไม่สำเร็จ");
 
       setOpenAdd(false);
-      setNewCar({ empID: "", carBrand: "", carProvince: "", carVIN: "", carPrice: "", carQuantity: "" });
+      setNewCar({
+        empID: "",
+        carPlate: "",
+        carBrand: "",
+        carType: "",
+        carSeat: "",
+        carGear: "",
+        carPower: "",
+        carDetail: "",
+        carProvince: "",
+        carVIN: "",
+        carPrice: "",
+        carQuantity: "",
+      });
       await loadCars();
     } catch (e: any) {
       setError(e?.message ?? "เพิ่มรถไม่สำเร็จ");
@@ -249,10 +291,68 @@ export default function PanelCarsPage() {
             </div>
 
             <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">ป้ายทะเบียน (carPlate)</label>
+              <input
+                value={newCar.carPlate}
+                onChange={(e) => setNewCar((p) => ({ ...p, carPlate: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">ยี่ห้อ/รุ่น</label>
               <input
                 value={newCar.carBrand}
                 onChange={(e) => setNewCar((p) => ({ ...p, carBrand: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">รุ่นรถ (carType)</label>
+              <input
+                value={newCar.carType}
+                onChange={(e) => setNewCar((p) => ({ ...p, carType: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">จำนวนที่นั่ง (carSeat)</label>
+              <input
+                type="number"
+                value={newCar.carSeat}
+                onChange={(e) => setNewCar((p) => ({ ...p, carSeat: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">เกียร์ (carGear)</label>
+              <input
+                value={newCar.carGear}
+                onChange={(e) => setNewCar((p) => ({ ...p, carGear: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">เครื่องยนต์ (carPower)</label>
+              <input
+                value={newCar.carPower}
+                onChange={(e) => setNewCar((p) => ({ ...p, carPower: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div className="md:col-span-3">
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                รายละเอียด (carDetail)
+              </label>
+              <textarea
+                rows={3}
+                value={newCar.carDetail}
+                onChange={(e) => setNewCar((p) => ({ ...p, carDetail: e.target.value }))}
                 className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
@@ -273,6 +373,11 @@ export default function PanelCarsPage() {
                 onChange={(e) => setNewCar((p) => ({ ...p, carVIN: e.target.value }))}
                 className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
               />
+              {isNewCarVinInvalid && (
+                <p className="mt-1 text-xs font-bold text-rose-600">
+                  carVIN ต้องเป็นตัวเลขเท่านั้น และห้ามเว้นว่าง
+                </p>
+              )}
             </div>
 
             <div>
@@ -297,7 +402,8 @@ export default function PanelCarsPage() {
           <div className="mt-5 flex justify-end">
             <button
               onClick={addCar}
-              className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold transition shadow-sm"
+              disabled={isNewCarVinInvalid}
+              className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-bold transition shadow-sm"
             >
               <Save size={16} /> เพิ่มรถ
             </button>
@@ -308,7 +414,6 @@ export default function PanelCarsPage() {
       <div className="grid grid-cols-1 gap-6">
         {activeCars.map((car) => {
           const carTag = `CAR-${String(car.carID).padStart(3, "0")}`;
-          const plateTop = carTag;
           const plateBottom = car.carProvince ?? "-";
 
           return (
@@ -325,9 +430,13 @@ export default function PanelCarsPage() {
                 </div>
 
                 <div className="inline-block border-2 border-slate-800 rounded-md bg-white">
-                  <div className="px-4 py-1.5 font-bold tracking-widest text-slate-800 text-lg border-b border-slate-200 text-center">
-                    {plateTop}
-                  </div>
+                  <input
+                    type="text"
+                    value={s(car.carPlate)}
+                    onChange={(e) => updateCarLocal(car.carID, { carPlate: e.target.value })}
+                    placeholder="null"
+                    className="w-32 px-3 py-1.5 font-bold tracking-widest text-slate-800 text-lg border-b border-slate-200 text-center outline-none bg-white"
+                  />
                   <div className="px-4 py-0.5 text-[10px] font-bold text-center bg-slate-50 text-slate-600">
                     {plateBottom}
                   </div>
@@ -349,6 +458,66 @@ export default function PanelCarsPage() {
                     type="text"
                     value={s(car.carBrand)}
                     onChange={(e) => updateCarLocal(car.carID, { carBrand: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    รุ่นรถ (carType)
+                  </label>
+                  <input
+                    type="text"
+                    value={s(car.carType)}
+                    onChange={(e) => updateCarLocal(car.carID, { carType: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    จำนวนที่นั่ง (carSeat)
+                  </label>
+                  <input
+                    type="number"
+                    value={s(car.carSeat)}
+                    onChange={(e) => updateCarLocal(car.carID, { carSeat: numOrNull(e.target.value) })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    เกียร์ (carGear)
+                  </label>
+                  <input
+                    type="text"
+                    value={s(car.carGear)}
+                    onChange={(e) => updateCarLocal(car.carID, { carGear: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    เครื่องยนต์ (carPower)
+                  </label>
+                  <input
+                    type="text"
+                    value={s(car.carPower)}
+                    onChange={(e) => updateCarLocal(car.carID, { carPower: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    รายละเอียด (carDetail)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={s(car.carDetail)}
+                    onChange={(e) => updateCarLocal(car.carID, { carDetail: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
                   />
                 </div>

@@ -24,6 +24,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
     const allowed = [
       "empID",
+      "carPlate",
       "carBrand",
       "carType",
       "carSeat",
@@ -89,7 +90,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     }
 
     const [result]: any = await db.execute(
-      `UPDATE car SET carStatus = 'RETIRED' WHERE carID = ?`,
+      `UPDATE car SET carStatus = 'Retired' WHERE carID = ?`,
       [carID]
     );
 

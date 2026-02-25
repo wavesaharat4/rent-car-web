@@ -7,7 +7,7 @@ export async function GET() {
       `SELECT
           CAST(carID AS SIGNED) AS carID,
           CAST(empID AS SIGNED) AS empID,
-          carBrand, carType, carSeat, carGear, carPower, carDetail,
+          carPlate, carBrand, carType, carSeat, carGear, carPower, carDetail,
           carQuantity, carPrice, carProvince, carVIN, carPicture, carStatus
        FROM car
        ORDER BY carID DESC`
@@ -28,6 +28,7 @@ export async function POST(req: Request) {
 
     const {
       empID,
+      carPlate = null,
       carBrand = null,
       carType = null,
       carSeat = null,
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
       carProvince = null,
       carVIN = null,
       carPicture = null,
-      carStatus = "ACTIVE",
+      carStatus = "Available",
     } = body ?? {};
 
     if (empID == null) {
@@ -48,15 +49,22 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    if (carVIN == null || !Number.isFinite(Number(carVIN))) {
+      return NextResponse.json(
+        { ok: false, message: "carVIN ต้องเป็นตัวเลขเท่านั้น และห้ามเว้นว่าง" },
+        { status: 400 }
+      );
+    }
 
     const [result]: any = await db.execute(
       `INSERT INTO car
-        (empID, carBrand, carType, carSeat, carGear, carPower, carDetail,
+        (empID, carPlate, carBrand, carType, carSeat, carGear, carPower, carDetail,
          carQuantity, carPrice, carProvince, carVIN, carPicture, carStatus)
        VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         empID,
+        carPlate,
         carBrand,
         carType,
         carSeat,
@@ -66,7 +74,7 @@ export async function POST(req: Request) {
         carQuantity,
         carPrice,
         carProvince,
-        carVIN,
+        Number(carVIN),
         carPicture,
         carStatus,
       ]
