@@ -6,7 +6,7 @@ import { Wrench, ShieldAlert, Plus, Save, RefreshCw, X } from "lucide-react";
 type CarRow = {
   carID: number;
   empID: number;
-  carPlate: string | null;
+  carPlate: string | null; 
   carBrand: string | null;
   carType: string | null;
   carSeat: number | null;
@@ -72,10 +72,18 @@ export default function PanelCarsPage() {
     try {
       const res = await fetch("/api/cars", { cache: "no-store" });
       const json = await res.json();
-      if (!json.ok) throw new Error(json.message || "โหลดข้อมูลไม่สำเร็จ");
+
+      // 🌟 จุดที่แก้: เช็คว่าถ้าเป็น Array ตรงๆ ก็ใช้งานได้เลย แต่ถ้าเป็นแบบของเพื่อนก็ให้ดึง .data มาใช้
+      let carsData = [];
+      if (Array.isArray(json)) {
+        carsData = json; // แบบของคุณ
+      } 
+      else {
+        throw new Error(json.message || "โหลดข้อมูลไม่สำเร็จ");
+      }
 
       // ✅ normalize: กัน carID/empID เป็น string หรือ null
-      const normalized: CarRow[] = (json.data ?? []).map((r: any) => ({
+      const normalized: CarRow[] = carsData.map((r: any) => ({
         carID: toNum(r.carID),
         empID: toNum(r.empID),
         carPlate: r.carPlate ?? null,
