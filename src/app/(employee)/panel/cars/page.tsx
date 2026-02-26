@@ -9,6 +9,7 @@ type CarRow = {
   carPlate: string | null; 
   carBrand: string | null;
   carType: string | null;
+  carModel: string | null;
   carSeat: number | null;
   carGear: string | null;
   carPower: string | null;
@@ -62,6 +63,7 @@ export default function PanelCarsPage() {
     carPlate: "",
     carBrand: "",
     carType: "",
+    carModel: "",
     carSeat: "",
     carGear: "",
     carPower: "",
@@ -78,6 +80,7 @@ export default function PanelCarsPage() {
     [cars]
   );
   const isNewCarVinInvalid = !isDigitsOnly(newCar.carVIN);
+  const isNewCarModelMissing = !newCar.carModel.trim();
 
   async function loadCars() {
     setLoading(true);
@@ -102,6 +105,7 @@ export default function PanelCarsPage() {
         carPlate: r.carPlate ?? null,
         carBrand: r.carBrand ?? null,
         carType: r.carType ?? null,
+        carModel: r.carModel ?? null,
         carSeat: r.carSeat == null ? null : toNum(r.carSeat),
         carGear: r.carGear ?? null,
         carPower: r.carPower ?? null,
@@ -197,6 +201,7 @@ export default function PanelCarsPage() {
           carPlate: car.carPlate,
           carBrand: car.carBrand,
           carType: car.carType,
+          carModel: car.carModel,
           carSeat: car.carSeat,
           carGear: car.carGear,
           carPower: car.carPower,
@@ -246,6 +251,9 @@ export default function PanelCarsPage() {
       if (isNewCarVinInvalid) {
         throw new Error("carVIN ต้องเป็นตัวเลขเท่านั้น และห้ามเว้นว่าง");
       }
+      if (isNewCarModelMissing) {
+        throw new Error("กรุณากรอก carModel (รุ่นรถ)");
+      }
 
       const uploadedPictureUrl = newCarImageFile
         ? await uploadCarImage(newCarImageFile)
@@ -259,6 +267,7 @@ export default function PanelCarsPage() {
         carPlate: textOrNull(newCar.carPlate),
         carBrand: textOrNull(newCar.carBrand),
         carType: textOrNull(newCar.carType),
+        carModel: textOrNull(newCar.carModel),
         carSeat: numOrNull(newCar.carSeat),
         carGear: textOrNull(newCar.carGear),
         carPower: textOrNull(newCar.carPower),
@@ -291,6 +300,7 @@ export default function PanelCarsPage() {
         carPlate: "",
         carBrand: "",
         carType: "",
+        carModel: "",
         carSeat: "",
         carGear: "",
         carPower: "",
@@ -387,6 +397,15 @@ export default function PanelCarsPage() {
               <input
                 value={newCar.carType}
                 onChange={(e) => setNewCar((p) => ({ ...p, carType: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">รุ่นรถ (carModel)</label>
+              <input
+                value={newCar.carModel}
+                onChange={(e) => setNewCar((p) => ({ ...p, carModel: e.target.value }))}
                 className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
@@ -511,7 +530,7 @@ export default function PanelCarsPage() {
           <div className="mt-5 flex justify-end">
             <button
               onClick={addCar}
-              disabled={isNewCarVinInvalid}
+              disabled={isNewCarVinInvalid || isNewCarModelMissing}
               className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-bold transition shadow-sm"
             >
               <Save size={16} /> เพิ่มรถ
@@ -587,6 +606,18 @@ export default function PanelCarsPage() {
                     type="text"
                     value={s(car.carType)}
                     onChange={(e) => updateCarLocal(car.carID, { carType: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    รุ่นรถ (carModel)
+                  </label>
+                  <input
+                    type="text"
+                    value={s(car.carModel)}
+                    onChange={(e) => updateCarLocal(car.carID, { carModel: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
                   />
                 </div>
