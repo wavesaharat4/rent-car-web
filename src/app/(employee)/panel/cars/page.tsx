@@ -13,7 +13,6 @@ type CarRow = {
   carGear: string | null;
   carPower: string | null;
   carDetail: string | null;
-  carQuantity: number | null;
   carPrice: number | null;
   carProvince: string | null;
   carVIN: number | null;
@@ -136,7 +135,6 @@ export default function PanelCarsPage() {
           carGear: car.carGear,
           carPower: car.carPower,
           carDetail: car.carDetail,
-          carQuantity: car.carQuantity,
           carPrice: car.carPrice,
           carProvince: car.carProvince,
           carVIN: car.carVIN,
@@ -388,15 +386,6 @@ export default function PanelCarsPage() {
                 className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">จำนวนรถ</label>
-              <input
-                value={newCar.carQuantity}
-                onChange={(e) => setNewCar((p) => ({ ...p, carQuantity: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
           </div>
 
           <div className="mt-5 flex justify-end">
@@ -444,8 +433,7 @@ export default function PanelCarsPage() {
 
                 <div className="text-xs font-bold text-slate-500">
                   VIN: <span className="text-slate-700">{car.carVIN ?? "-"}</span> • ราคา/วัน:{" "}
-                  <span className="text-slate-700">{car.carPrice ?? "-"}</span> • คงเหลือ:{" "}
-                  <span className="text-slate-700">{car.carQuantity ?? "-"}</span>
+                  <span className="text-slate-700">{car.carPrice ?? "-"}</span>
                 </div>
               </div>
 
