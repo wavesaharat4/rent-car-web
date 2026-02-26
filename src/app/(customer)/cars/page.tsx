@@ -1,184 +1,371 @@
 "use client";
 
-import { useState, useMemo } from 'react';
-import Link from 'next/link';
+import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
+import { Search, Fuel, Settings2, Users, MapPin, Calendar, Map } from "lucide-react";
 
-// 1. กำหนด Interface ของข้อมูลรถ
 interface Car {
-  id: number;
-  name: string;
-  brand: string;
-  type: string;
-  seats: number;
-  price: number;
-  img: string;
+  carID: number;
+  empID: number;
+  carBrand: string;
+  carType: string;
+  carSeat: number;
+  carGear: string;
+  carPower: string;
+  carDetail: string;
+  carQuantity: number;
+  carPrice: number;
+  carProvince: string;
+  carVIN: number;
+  carPicture: string;
+  carStatus: string;
+  carPlate: string;
 }
 
-// 2. ข้อมูล Mock Data สำหรับทดสอบระบบกรอง
-const allCars: Car[] = [
-  { id: 1, name: 'Toyota Yaris', brand: 'Toyota', type: 'Eco', seats: 4, price: 800, img: 'https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&w=800&q=80' },
-  { id: 2, name: 'Honda HR-V', brand: 'Honda', type: 'SUV', seats: 5, price: 1500, img: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&q=80' },
-  { id: 3, name: 'BYD Atto 3', brand: 'BYD', type: 'EV', seats: 5, price: 1800, img: 'https://images.unsplash.com/photo-1672846727402-1fa8d338fbc9?auto=format&fit=crop&w=800&q=80' },
-  { id: 4, name: 'Toyota Fortuner', brand: 'Toyota', type: 'SUV', seats: 7, price: 2500, img: 'https://images.unsplash.com/photo-1550482782-5f60dc8a7a85?auto=format&fit=crop&w=800&q=80' },
-  { id: 5, name: 'Honda Civic', brand: 'Honda', type: 'Sedan', seats: 5, price: 1200, img: 'https://images.unsplash.com/photo-1610647752706-3bb12232b3ab?auto=format&fit=crop&w=800&q=80' },
-  { id: 6, name: 'BMW 3 Series', brand: 'BMW', type: 'Luxury', seats: 5, price: 3500, img: 'https://images.unsplash.com/photo-1555353540-64fd1b1958b1?auto=format&fit=crop&w=800&q=80' },
-  { id: 7, name: 'Toyota Alphard', brand: 'Toyota', type: 'Van', seats: 7, price: 4500, img: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80' },
-];
-
 export default function CarsPage() {
-  // 3. สร้าง State เก็บค่าตัวกรองที่ผู้ใช้เลือก
-  const [selectedBrand, setSelectedBrand] = useState('');
-  const [selectedType, setSelectedType] = useState('');
-  const [selectedSeats, setSelectedSeats] = useState('');
-  const [sortBy, setSortBy] = useState('');
+  const [cars, setCars] = useState<Car[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // 4. คำนวณข้อมูลรถใหม่เมื่อตัวกรองเปลี่ยน
+  // 🌟 State สำหรับข้อมูลการจอง (สถานที่และวันที่)
+  const [pickupLocation, setPickupLocation] = useState("");
+  const [dropoffLocation, setDropoffLocation] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  // State สำหรับค้นหาและกรอง
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedBrand, setSelectedBrand] = useState("");
+  const [selectedType, setSelectedType] = useState("");
+  const [sortBy, setSortBy] = useState("");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    const fetchCars = async () => {
+      try {
+        const res = await fetch("/api/cars");
+        const data = await res.json();
+        setCars(data);
+      } catch (error) {
+        console.error("Failed to fetch cars:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCars();
+  }, []);
+
   const filteredCars = useMemo(() => {
-    let result = [...allCars];
+    let result = cars.filter((car) => car.carStatus === "Available");
 
-    if (selectedBrand) result = result.filter(car => car.brand === selectedBrand);
-    if (selectedType) result = result.filter(car => car.type === selectedType);
-    if (selectedSeats) result = result.filter(car => car.seats === parseInt(selectedSeats));
+    if (searchQuery) {
+      const lowerQuery = searchQuery.toLowerCase();
+      result = result.filter(
+        (car) =>
+          car.carBrand.toLowerCase().includes(lowerQuery) ||
+          car.carDetail.toLowerCase().includes(lowerQuery) ||
+          car.carProvince.toLowerCase().includes(lowerQuery),
+      );
+    }
 
-    if (sortBy === 'price_asc') {
-      result.sort((a, b) => a.price - b.price); // ถูกไปแพง
-    } else if (sortBy === 'price_desc') {
-      result.sort((a, b) => b.price - a.price); // แพงไปถูก
+    if (selectedBrand) result = result.filter((car) => car.carBrand === selectedBrand);
+    if (selectedType) result = result.filter((car) => car.carType === selectedType);
+
+    if (sortBy === "price_asc") {
+      result.sort((a, b) => a.carPrice - b.carPrice);
+    } else if (sortBy === "price_desc") {
+      result.sort((a, b) => b.carPrice - a.carPrice);
     }
 
     return result;
-  }, [selectedBrand, selectedType, selectedSeats, sortBy]);
+  }, [cars, searchQuery, selectedBrand, selectedType, sortBy]);
+
+  const totalPages = Math.ceil(filteredCars.length / itemsPerPage);
+  const paginatedCars = filteredCars.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage,
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedBrand, selectedType, sortBy]);
+
+  const activeCarsOnly = cars.filter((c) => c.carStatus === "Available");
+  const brands = [...new Set(activeCarsOnly.map((car) => car.carBrand))];
+  const types = [...new Set(activeCarsOnly.map((car) => car.carType))];
 
   return (
-    <div className="bg-slate-50 min-h-screen pt-28 pb-20 font-sans selection:bg-blue-200 text-blue-950">
+    <div className="bg-slate-50 min-h-screen pt-28 pb-20 font-sans text-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* หัวข้อหน้า */}
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-extrabold text-blue-950">คอลเลกชันรถยนต์ทั้งหมด</h1>
-          <p className="text-blue-600 mt-2 font-medium">ค้นหารถที่ตรงกับไลฟ์สไตล์และการเดินทางของคุณ</p>
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-end mb-6 gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+              เลือกรถที่คุณถูกใจ
+            </h1>
+            <p className="text-slate-500 mt-2">
+              มีรถพร้อมให้บริการทั้งหมด <span className="font-bold text-blue-600">{filteredCars.length}</span> คัน
+            </p>
+          </div>
         </div>
 
-        {/* แถบตัวกรอง (Filter Bar) */}
-        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-blue-100 mb-10 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full md:w-auto flex-1">
-            
-            <div className="flex flex-col">
-              <label className="text-xs text-blue-600 font-bold mb-1 uppercase">ยี่ห้อ</label>
-              <select 
-                value={selectedBrand} 
+        {/* 🌟 --- Booking Details Bar (สถานที่ & วันที่) --- */}
+        <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-200 mb-4 z-40 relative">
+          <h2 className="text-sm font-bold text-blue-600 mb-4 uppercase tracking-wider flex items-center gap-2">
+            <MapPin size={18} /> กำหนดการเดินทาง
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* สถานที่รับรถ */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">สถานที่รับรถ</label>
+              <div className="relative">
+                <Map className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="เช่น สนามบินดอนเมือง"
+                  value={pickupLocation}
+                  onChange={(e) => setPickupLocation(e.target.value)}
+                  className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium"
+                />
+              </div>
+            </div>
+
+            {/* สถานที่คืนรถ */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">สถานที่คืนรถ</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="เช่น สนามบินสุวรรณภูมิ"
+                  value={dropoffLocation}
+                  onChange={(e) => setDropoffLocation(e.target.value)}
+                  className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium"
+                />
+              </div>
+            </div>
+
+            {/* วันที่รับรถ */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">วันที่รับรถ</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium"
+                />
+              </div>
+            </div>
+
+            {/* วันที่คืนรถ */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">วันที่คืนรถ</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* --- Search & Filter Bar --- */}
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-8 sticky top-24 z-30">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="ค้นหายี่ห้อ, รุ่น, จังหวัด..."
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-[2]">
+              <select
+                value={selectedBrand}
                 onChange={(e) => setSelectedBrand(e.target.value)}
-                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-sm font-medium text-blue-950"
+                className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
               >
                 <option value="">ทุกยี่ห้อ</option>
-                <option value="Toyota">Toyota</option>
-                <option value="Honda">Honda</option>
-                <option value="BYD">BYD</option>
-                <option value="BMW">BMW</option>
+                {brands.map((brand) => (
+                  <option key={brand} value={brand}>{brand}</option>
+                ))}
               </select>
-            </div>
 
-            <div className="flex flex-col">
-              <label className="text-xs text-blue-600 font-bold mb-1 uppercase">ประเภท</label>
-              <select 
-                value={selectedType} 
+              <select
+                value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
-                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-sm font-medium text-blue-950"
+                className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
               >
                 <option value="">ทุกประเภท</option>
-                <option value="Eco">Eco Car</option>
-                <option value="Sedan">Sedan</option>
-                <option value="SUV">SUV</option>
-                <option value="EV">EV (ไฟฟ้า)</option>
-                <option value="Luxury">Luxury</option>
-                <option value="Van">รถตู้/MPV</option>
+                {types.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
               </select>
-            </div>
 
-            <div className="flex flex-col">
-              <label className="text-xs text-blue-600 font-bold mb-1 uppercase">จำนวนที่นั่ง</label>
-              <select 
-                value={selectedSeats} 
-                onChange={(e) => setSelectedSeats(e.target.value)}
-                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-sm font-medium text-blue-950"
-              >
-                <option value="">ทั้งหมด</option>
-                <option value="4">4 ที่นั่ง</option>
-                <option value="5">5 ที่นั่ง</option>
-                <option value="7">7 ที่นั่ง</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col">
-              <label className="text-xs text-blue-600 font-bold mb-1 uppercase">เรียงตามราคา</label>
-              <select 
-                value={sortBy} 
+              <select
+                value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-sm font-medium text-blue-950"
+                className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none md:col-span-2"
               >
-                <option value="">แนะนำ</option>
-                <option value="price_asc">ราคา: ต่ำไปสูง</option>
-                <option value="price_desc">ราคา: สูงไปต่ำ</option>
+                <option value="">เรียงตามแนะนำ</option>
+                <option value="price_asc">ราคา: น้อยไปมาก</option>
+                <option value="price_desc">ราคา: มากไปน้อย</option>
               </select>
             </div>
           </div>
-
-          <button 
-            onClick={() => {
-              setSelectedBrand('');
-              setSelectedType('');
-              setSelectedSeats('');
-              setSortBy('');
-            }}
-            className="w-full md:w-auto px-6 py-2.5 text-sm font-bold text-blue-600 border-2 border-blue-100 hover:bg-blue-50 hover:border-blue-200 rounded-xl transition-all h-fit self-end"
-          >
-            ล้างค่า
-          </button>
         </div>
 
-        {/* แสดงจำนวนผลลัพธ์ */}
-        <div className="mb-6">
-          <p className="text-slate-500 font-medium text-sm">พบรถทั้งหมด <span className="text-blue-700 font-bold text-lg">{filteredCars.length}</span> คัน</p>
-        </div>
+        {/* --- Loading State --- */}
+        {loading && (
+          <div className="text-center py-20">
+            <div className="animate-spin w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full mx-auto mb-4"></div>
+            <p className="text-slate-500">กำลังโหลดข้อมูลรถ...</p>
+          </div>
+        )}
 
-        {/* ตารางแสดงผล */}
-        {filteredCars.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredCars.map((car) => (
-              <div key={car.id} className="bg-white rounded-2xl overflow-hidden border border-blue-100 hover:border-blue-300 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group">
-                <div className="h-48 overflow-hidden relative bg-slate-100">
-                  <img src={car.img} alt={car.name} className="w-full h-full object-cover transform group-hover:scale-110 transition duration-700 mix-blend-multiply" />
-                  <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm text-blue-950 text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
-                    {car.seats} ที่นั่ง
+        {/* --- Car List (Horizontal Cards) --- */}
+        {!loading && (
+          <div className="space-y-6">
+            {paginatedCars.map((car) => (
+              <div
+                key={car.carID}
+                className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-xl hover:border-blue-300 transition-all duration-300 flex flex-col md:flex-row h-auto md:h-64"
+              >
+                {/* 1. รูปภาพด้านซ้าย */}
+                <div className="w-full md:w-1/3 relative overflow-hidden bg-slate-100">
+                  <img
+                    src={car.carPicture || "/images/car-placeholder.jpg"}
+                    alt={car.carBrand}
+                    className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute top-3 left-3 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                    {car.carType}
                   </div>
                 </div>
-                <div className="p-5 flex flex-col flex-1">
-                  <div className="flex justify-between items-start mb-2">
-                    <p className="text-xs text-blue-500 font-bold uppercase tracking-wider">{car.type}</p>
-                    <p className="text-xs text-slate-400 font-medium">{car.brand}</p>
-                  </div>
-                  <h3 className="text-xl font-bold text-blue-950 mb-4">{car.name}</h3>
-                  <div className="mt-auto flex justify-between items-end border-t border-slate-100 pt-4">
-                    <div>
-                      <p className="text-slate-500 text-xs font-medium mb-1">เริ่มต้น</p>
-                      <p className="text-blue-950 font-extrabold"><span className="text-2xl text-blue-600">฿{car.price}</span> / วัน</p>
+
+                {/* 2. รายละเอียดด้านขวา */}
+                <div className="flex-1 p-6 flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h2 className="text-2xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors">
+                          {car.carBrand}
+                        </h2>
+                        <p className="text-slate-500 text-sm line-clamp-1 mt-1">
+                          {car.carDetail}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-slate-400 mb-1">
+                          ราคาเช่าต่อวัน
+                        </p>
+                        <p className="text-2xl font-black text-blue-600">
+                          ฿{car.carPrice.toLocaleString()}
+                        </p>
+                      </div>
                     </div>
-                    {/* ปุ่มลิงก์ไปหน้ารายละเอียดรถ */}
-                    <Link href={`/cars/${car.id}`} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-blue-700 transition-all font-bold shadow-md shadow-blue-600/20 transform hover:-translate-y-0.5">
+
+                    {/* Badge คุณสมบัติรถ */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+                      <div className="flex items-center gap-2 text-slate-600 text-sm bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <Users size={16} className="text-blue-500" />
+                        <span>{car.carSeat} ที่นั่ง</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-600 text-sm bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <Settings2 size={16} className="text-blue-500" />
+                        <span>{car.carGear}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-600 text-sm bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <Fuel size={16} className="text-blue-500" />
+                        <span>{car.carPower}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-600 text-sm bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <MapPin size={16} className="text-blue-500" />
+                        <span className="truncate">{car.carProvince}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. ปุ่มแยกกันด้านล่าง */}
+                  <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
+                    <Link
+                      href={`/cars/${car.carID}`}
+                      className="flex-1 py-3 text-center text-slate-700 bg-white border border-slate-300 rounded-xl font-bold text-sm hover:bg-slate-50 hover:text-slate-900 transition-all"
+                    >
                       ดูรายละเอียด
+                    </Link>
+                    {/* 🌟 แนบข้อมูลสถานที่และวันที่ไปกับ URL เพื่อส่งให้หน้า Checkout */}
+                    <Link
+                      href={`/checkout?carId=${car.carID}&pickup=${pickupLocation}&dropoff=${dropoffLocation}&start=${startDate}&end=${endDate}`}
+                      className="flex-1 py-3 text-center text-white bg-blue-600 border border-slate-300 rounded-xl font-bold text-sm hover:bg-blue-800 transition-all"
+                    >
+                      จองเลย
                     </Link>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        ) : (
-          <div className="bg-white rounded-3xl p-16 text-center border border-dashed border-blue-200 flex flex-col items-center justify-center">
-            <svg className="w-16 h-16 text-blue-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h3 className="text-xl font-bold text-blue-950 mb-2">ไม่พบรถที่ค้นหา</h3>
-            <p className="text-slate-500">ลองเปลี่ยนเงื่อนไขการกรอง หรือกดปุ่ม "ล้างค่า" เพื่อดูรถทั้งหมด</p>
+        )}
+
+        {/* --- Pagination Controls --- */}
+        {!loading && filteredCars.length > 0 && (
+          <div className="mt-12 flex justify-center items-center gap-2">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 disabled:opacity-50 hover:bg-slate-50 font-medium"
+            >
+              ก่อนหน้า
+            </button>
+            <div className="flex gap-1">
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i + 1}
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`w-10 h-10 rounded-lg font-bold flex items-center justify-center transition-all ${
+                    currentPage === i + 1
+                      ? "bg-blue-600 text-white shadow-md"
+                      : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+              }
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 disabled:opacity-50 hover:bg-slate-50 font-medium"
+            >
+              ถัดไป
+            </button>
+          </div>
+        )}
+
+        {/* กรณีหาไม่เจอ */}
+        {!loading && filteredCars.length === 0 && (
+          <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
+            <h3 className="text-xl font-bold text-slate-800">
+              ไม่พบรถพร้อมให้บริการ
+            </h3>
+            <p className="text-slate-500 mt-2">
+              อาจจะไม่มีรถว่างในขณะนี้ หรือลองเปลี่ยนคำค้นหาดูนะครับ
+            </p>
           </div>
         )}
       </div>

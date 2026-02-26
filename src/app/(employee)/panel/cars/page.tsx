@@ -6,7 +6,7 @@ import { Wrench, ShieldAlert, Plus, Save, RefreshCw, X } from "lucide-react";
 type CarRow = {
   carID: number;
   empID: number;
-  carPlate: string | null;
+  carPlate: string | null; 
   carBrand: string | null;
   carType: string | null;
   carSeat: number | null;
@@ -71,10 +71,18 @@ export default function PanelCarsPage() {
     try {
       const res = await fetch("/api/cars", { cache: "no-store" });
       const json = await res.json();
-      if (!json.ok) throw new Error(json.message || "โหลดข้อมูลไม่สำเร็จ");
+
+      // 🌟 จุดที่แก้: เช็คว่าถ้าเป็น Array ตรงๆ ก็ใช้งานได้เลย แต่ถ้าเป็นแบบของเพื่อนก็ให้ดึง .data มาใช้
+      let carsData = [];
+      if (Array.isArray(json)) {
+        carsData = json; // แบบของคุณ
+      } 
+      else {
+        throw new Error(json.message || "โหลดข้อมูลไม่สำเร็จ");
+      }
 
       // ✅ normalize: กัน carID/empID เป็น string หรือ null
-      const normalized: CarRow[] = (json.data ?? []).map((r: any) => ({
+      const normalized: CarRow[] = carsData.map((r: any) => ({
         carID: toNum(r.carID),
         empID: toNum(r.empID),
         carPlate: r.carPlate ?? null,
@@ -298,7 +306,7 @@ export default function PanelCarsPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">ยี่ห้อ/รุ่น</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">ยี่ห้อรถ (carBrand)</label>
               <input
                 value={newCar.carBrand}
                 onChange={(e) => setNewCar((p) => ({ ...p, carBrand: e.target.value }))}
@@ -307,7 +315,7 @@ export default function PanelCarsPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">รุ่นรถ (carType)</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">ชนิดรถ (carType)</label>
               <input
                 value={newCar.carType}
                 onChange={(e) => setNewCar((p) => ({ ...p, carType: e.target.value }))}
@@ -440,7 +448,7 @@ export default function PanelCarsPage() {
               <div className="flex-1 grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
-                    ยี่ห้อ/รุ่น (carBrand)
+                    ยี่ห้อรถ (carBrand)
                   </label>
                   <input
                     type="text"
@@ -452,7 +460,7 @@ export default function PanelCarsPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
-                    รุ่นรถ (carType)
+                    ชนิดรถ (carType)
                   </label>
                   <input
                     type="text"
