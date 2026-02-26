@@ -17,7 +17,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // 1. ค้นหาในตารางลูกค้า (เปลี่ยน email เป็น cusMail)
+          // 1. ค้นหาในตารางลูกค้า
           const [customerRows] = await db.query<RowDataPacket[]>(
             "SELECT * FROM customer WHERE cusMail = ?",
             [credentials.email]
@@ -26,12 +26,12 @@ export const authOptions: NextAuthOptions = {
           if (customerRows.length > 0) {
             const user = customerRows[0];
             
-            // ตรวจสอบรหัสผ่าน (เปลี่ยน password เป็น cusPass)
+            // ตรวจสอบรหัสผ่าน
             if (credentials.password === user.cusPass) {
               return {
-                id: user.cusID.toString(), // เปลี่ยน id เป็น cusID
-                name: `${user.cusFN} ${user.cusLN}`, // เปลี่ยนชื่อ-สกุล
-                email: user.cusMail, // เปลี่ยน email
+                id: user.cusID.toString(),
+                name: `${user.cusFN} ${user.cusLN}`,
+                email: user.cusMail,
                 role: "CUSTOMER", 
               };
             } else {
@@ -39,7 +39,7 @@ export const authOptions: NextAuthOptions = {
             }
           }
 
-          // 2. ถ้าไม่เจอลูกค้า ให้หาในตารางพนักงาน (เปลี่ยน email เป็น empMail)
+          // 2. ถ้าไม่เจอลูกค้า ให้หาในตารางพนักงาน
           const [employeeRows] = await db.query<RowDataPacket[]>(
             "SELECT * FROM employee WHERE empMail = ?",
             [credentials.email]
@@ -48,13 +48,13 @@ export const authOptions: NextAuthOptions = {
           if (employeeRows.length > 0) {
             const emp = employeeRows[0];
 
-            // ตรวจสอบรหัสผ่าน (เปลี่ยน password เป็น empPass)
+            // ตรวจสอบรหัสผ่าน
             if (credentials.password === emp.empPass) {
               return {
-                id: emp.empID.toString(), // เปลี่ยน id เป็น empID
-                name: `${emp.empFN} ${emp.empLN}`, // เปลี่ยนชื่อ-สกุล
-                email: emp.empMail, // เปลี่ยน email
-                role: emp.empRole.toUpperCase(), // เปลี่ยน role เป็น empRole
+                id: emp.empID.toString(),
+                name: `${emp.empFN} ${emp.empLN}`,
+                email: emp.empMail,
+                role: emp.empRole.toUpperCase(), 
               };
             } else {
               throw new Error("รหัสผ่านไม่ถูกต้อง");
@@ -71,21 +71,34 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = (user as any).role;
-      }
-      return token;
+    // 1. จัดการ Token
+    async jwt({ token, user, trigger, session }) {
+        // ถ้าเป็นการ Login ครั้งแรก
+        if (user) {
+            token.id = user.id;
+            token.name = user.name;
+        }
+        // 📌 ถ้ามีการสั่ง update() จากหน้า Profile ให้เอาชื่อใหม่มาทับ
+        if (trigger === "update" && session?.name) {
+            token.name = session.name;
+        }
+        return token;
     },
-    async session({ session, token }) {
-      if (session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-      }
-      return session;
-    }
-  },
+
+    // 2. ส่ง Token ไปให้ Session (เพื่อให้ Navbar เอาไปใช้)
+        async session({ session, token }) {
+            if (token) {
+                // 📌 เพิ่มบรรทัดนี้เพื่อป้องกัน Error 'undefined'
+                session.user = session.user || {}; 
+                
+                // @ts-ignore
+                session.user.id = token.id;
+                // @ts-ignore
+                session.user.name = token.name; 
+            }
+            return session;
+        }
+  }, // ✅ ปีกกาปิด callbacks ที่ถูกต้อง
   pages: {
     signIn: "/login",
   },
