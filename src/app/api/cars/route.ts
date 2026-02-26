@@ -56,7 +56,7 @@ export async function POST(req: Request) {
         const [result]: any = await db.execute(
             `INSERT INTO car
         (empID, carPlate, carBrand, carType, carSeat, carGear, carPower, carDetail,
-          carPrice, carProvince, carVIN, carPicture, carStatus
+          carPrice, carProvince, carVIN, carPicture, carStatus)
        VALUES
         (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
