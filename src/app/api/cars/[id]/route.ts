@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { RowDataPacket } from "mysql2";
 
 const parseCarId = (raw: string) => {
   const id = parseInt(raw, 10);
@@ -108,3 +109,41 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     );
   }
 }
+export async function GET(req: Request, ctx: Ctx) {
+  try {
+    const { id } = await ctx.params;
+    const carID = parseCarId(id);
+
+    if (carID == null) {
+      return NextResponse.json(
+        { ok: false, message: `carID ไม่ถูกต้อง: ${id}` },
+        { status: 400 }
+      );
+    }
+
+    // ดึงข้อมูลจากฐานข้อมูลตาม carID
+    const [rows] = await db.query<RowDataPacket[]>(
+      "SELECT * FROM car WHERE carID = ?",
+      [carID]
+    );
+
+    // ถ้าไม่เจอรถ
+    if (rows.length === 0) {
+      return NextResponse.json(
+        { ok: false, message: "ไม่พบข้อมูลรถคันนี้" },
+        { status: 404 }
+      );
+    }
+
+    // ส่งข้อมูลรถคันแรกกลับไป
+    return NextResponse.json({ ok: true, data: rows[0] });
+
+  } catch (err: any) {
+    console.error("Fetch Car Error:", err);
+    return NextResponse.json(
+      { ok: false, message: err?.message ?? "DB error" },
+      { status: 500 }
+    );
+  }
+}
+
