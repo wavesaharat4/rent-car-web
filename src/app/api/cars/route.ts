@@ -3,11 +3,16 @@ import { db } from "@/lib/db";
 import { RowDataPacket } from "mysql2";
 
 export async function GET() {
-    try {
-        // ดึงข้อมูลรถทั้งหมดที่สถานะเป็น 'active' (พร้อมใช้งาน)
-        const [rows] = await db.query<RowDataPacket[]>(
-            "SELECT * FROM car ORDER BY carID DESC"
-        );
+  try {
+    const [rows] = await db.query(
+      `SELECT
+          CAST(carID AS SIGNED) AS carID,
+          CAST(empID AS SIGNED) AS empID,
+          carPlate, carBrand, carType, carSeat, carGear, carPower, carDetail,
+          carPrice, carProvince, carVIN, carPicture, carStatus
+       FROM car
+       ORDER BY carID DESC`
+    );
 
         return NextResponse.json(rows);
     } catch (error) {
@@ -19,22 +24,21 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
 
-        const {
-            empID,
-            carPlate = null,
-            carBrand = null,
-            carType = null,
-            carSeat = null,
-            carGear = null,
-            carPower = null,
-            carDetail = null,
-            carQuantity = null,
-            carPrice = null,
-            carProvince = null,
-            carVIN = null,
-            carPicture = null,
-            carStatus = "Available",
-        } = body ?? {};
+    const {
+      empID,
+      carPlate = null,
+      carBrand = null,
+      carType = null,
+      carSeat = null,
+      carGear = null,
+      carPower = null,
+      carDetail = null,
+      carPrice = null,
+      carProvince = null,
+      carVIN = null,
+      carPicture = null,
+      carStatus = "Available",
+    } = body ?? {};
 
         if (empID == null) {
             return NextResponse.json(
@@ -52,26 +56,25 @@ export async function POST(req: Request) {
         const [result]: any = await db.execute(
             `INSERT INTO car
         (empID, carPlate, carBrand, carType, carSeat, carGear, carPower, carDetail,
-         carQuantity, carPrice, carProvince, carVIN, carPicture, carStatus)
+          carPrice, carProvince, carVIN, carPicture, carStatus
        VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                empID,
-                carPlate,
-                carBrand,
-                carType,
-                carSeat,
-                carGear,
-                carPower,
-                carDetail,
-                carQuantity,
-                carPrice,
-                carProvince,
-                Number(carVIN),
-                carPicture,
-                carStatus,
-            ]
-        );
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        empID,
+        carPlate,
+        carBrand,
+        carType,
+        carSeat,
+        carGear,
+        carPower,
+        carDetail,
+        carPrice,
+        carProvince,
+        Number(carVIN),
+        carPicture,
+        carStatus,
+      ]
+    );
 
         return NextResponse.json({ ok: true, carID: result.insertId });
     } catch (err: any) {

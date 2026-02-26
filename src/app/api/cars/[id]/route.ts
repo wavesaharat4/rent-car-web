@@ -32,7 +32,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
       "carGear",
       "carPower",
       "carDetail",
-      "carQuantity",
       "carPrice",
       "carProvince",
       "carVIN",
