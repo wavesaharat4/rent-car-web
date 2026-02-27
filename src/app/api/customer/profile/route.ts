@@ -31,18 +31,18 @@ export async function GET(req: Request) {
 // 📌 2. ฟังก์ชันอัปเดตข้อมูล (PUT) ตอนกดปุ่มบันทึก
 export async function PUT(req: Request) {
     try {
-        // 👈 เพิ่ม cusDL เข้ามารับค่าที่ส่งมาจากหน้าเว็บ
-        const { cusID, cusFN, cusLN, cusPhone, cusAddress, cusGender, cusDL } = await req.json();
+        // 🌟 เพิ่ม cusPassport เข้ามารับค่า
+        const { cusID, cusFN, cusLN, cusPhone, cusAddress, cusGender, cusDL, cusPassport } = await req.json();
 
-        // 👈 เพิ่ม cusDL = ? ในคำสั่ง SQL
+        // 🌟 เพิ่ม cusPassport = ? ในคำสั่ง SQL
         const queryUpdate = `
             UPDATE customer 
-            SET cusFN = ?, cusLN = ?, cusPhone = ?, cusAddress = ?, cusGender = ?, cusDL = ?
+            SET cusFN = ?, cusLN = ?, cusPhone = ?, cusAddress = ?, cusGender = ?, cusDL = ?, cusPassport = ?
             WHERE cusID = ?
         `;
         
-        // 👈 เพิ่มตัวแปร cusDL ลงไปใน Array ให้ตรงกับเครื่องหมาย ? 
-        await db.query(queryUpdate, [cusFN, cusLN, cusPhone, cusAddress, cusGender, cusDL, cusID]);
+        // 🌟 เพิ่มตัวแปร cusPassport ลงไปใน Array
+        await db.query(queryUpdate, [cusFN, cusLN, cusPhone, cusAddress, cusGender, cusDL, cusPassport, cusID]);
 
         return NextResponse.json({ message: "อัปเดตข้อมูลสำเร็จ" });
 
