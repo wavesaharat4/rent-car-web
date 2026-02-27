@@ -8,7 +8,7 @@ export async function GET() {
       `SELECT
           CAST(carID AS SIGNED) AS carID,
           CAST(empID AS SIGNED) AS empID,
-          carPlate, carBrand, carType, carSeat, carGear, carPower, carDetail,
+          carPlate, carBrand, carType, carModel, carSeat, carGear, carPower, carDetail,
           carPrice, carProvince, carVIN, carPicture, carStatus
        FROM car
        ORDER BY carID DESC`
@@ -29,6 +29,7 @@ export async function POST(req: Request) {
       carPlate = null,
       carBrand = null,
       carType = null,
+      carModel = null,
       carSeat = null,
       carGear = null,
       carPower = null,
@@ -55,15 +56,16 @@ export async function POST(req: Request) {
 
         const [result]: any = await db.execute(
             `INSERT INTO car
-        (empID, carPlate, carBrand, carType, carSeat, carGear, carPower, carDetail,
-          carPrice, carProvince, carVIN, carPicture, carStatus
+        (empID, carPlate, carBrand, carType, carModel, carSeat, carGear, carPower, carDetail,
+          carPrice, carProvince, carVIN, carPicture, carStatus)
        VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         empID,
         carPlate,
         carBrand,
         carType,
+        carModel,
         carSeat,
         carGear,
         carPower,

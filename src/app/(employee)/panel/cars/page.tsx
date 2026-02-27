@@ -9,6 +9,7 @@ type CarRow = {
   carPlate: string | null; 
   carBrand: string | null;
   carType: string | null;
+  carModel: string | null;
   carSeat: number | null;
   carGear: string | null;
   carPower: string | null;
@@ -32,6 +33,14 @@ const numOrNull = (v: string) => {
   return Number.isFinite(n) ? n : null;
 };
 const isDigitsOnly = (v: string) => /^\d+$/.test(v.trim());
+const fileNameFromUrl = (url: string) => {
+  try {
+    const path = new URL(url).pathname;
+    return decodeURIComponent(path.split("/").pop() || url);
+  } catch {
+    return url;
+  }
+};
 
 const toNumOrNull = (v: any) => (v == null || v === "" ? null : Number(v));
 const toNum = (v: any) => Number(v);
@@ -40,15 +49,21 @@ export default function PanelCarsPage() {
   const [cars, setCars] = useState<CarRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [uploadingId, setUploadingId] = useState<number | null>(null);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryImages, setLibraryImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [extra, setExtra] = useState<Record<number, { odo?: string; nextMaint?: string }>>({});
   const [openAdd, setOpenAdd] = useState(false);
+  const [newCarImageFile, setNewCarImageFile] = useState<File | null>(null);
+  const [newCarExistingPicture, setNewCarExistingPicture] = useState("");
   const [newCar, setNewCar] = useState({
     empID: "",
     carPlate: "",
     carBrand: "",
     carType: "",
+    carModel: "",
     carSeat: "",
     carGear: "",
     carPower: "",
@@ -56,14 +71,16 @@ export default function PanelCarsPage() {
     carProvince: "",
     carVIN: "",
     carPrice: "",
-    carQuantity: "",
   });
+  const [carImageFiles, setCarImageFiles] = useState<Record<number, File | null>>({});
+  const [selectedLibraryByCar, setSelectedLibraryByCar] = useState<Record<number, string>>({});
 
   const activeCars = useMemo(
     () => cars.filter((c) => (c.carStatus ?? "").toLowerCase() !== "retired"),
     [cars]
   );
   const isNewCarVinInvalid = !isDigitsOnly(newCar.carVIN);
+  const isNewCarModelMissing = !newCar.carModel.trim();
 
   async function loadCars() {
     setLoading(true);
@@ -88,11 +105,11 @@ export default function PanelCarsPage() {
         carPlate: r.carPlate ?? null,
         carBrand: r.carBrand ?? null,
         carType: r.carType ?? null,
+        carModel: r.carModel ?? null,
         carSeat: r.carSeat == null ? null : toNum(r.carSeat),
         carGear: r.carGear ?? null,
         carPower: r.carPower ?? null,
         carDetail: r.carDetail ?? null,
-        carQuantity: toNumOrNull(r.carQuantity),
         carPrice: toNumOrNull(r.carPrice),
         carProvince: r.carProvince ?? null,
         carVIN: toNumOrNull(r.carVIN),
@@ -108,12 +125,43 @@ export default function PanelCarsPage() {
     }
   }
 
+  async function loadLibraryImages() {
+    setLibraryLoading(true);
+    try {
+      const res = await fetch("/api/upload/car-image/list", { cache: "no-store" });
+      const json = await res.json();
+      if (!json?.ok) throw new Error(json?.message || "โหลดรายการรูปไม่สำเร็จ");
+      setLibraryImages(Array.isArray(json.data) ? json.data : []);
+    } catch (e: any) {
+      setError(e?.message ?? "โหลดรายการรูปไม่สำเร็จ");
+    } finally {
+      setLibraryLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadCars();
+    loadLibraryImages();
   }, []);
 
   function updateCarLocal(carID: number, patch: Partial<CarRow>) {
     setCars((prev) => prev.map((c) => (c.carID === carID ? { ...c, ...patch } : c)));
+  }
+
+  async function uploadCarImage(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch("/api/upload/car-image", {
+      method: "POST",
+      body: formData,
+    });
+
+    const json = await res.json();
+    if (!json?.ok || !json?.url) {
+      throw new Error(json?.message || "อัปโหลดรูปไม่สำเร็จ");
+    }
+    return json.url as string;
   }
 
   async function saveCar(car: CarRow) {
@@ -131,6 +179,20 @@ export default function PanelCarsPage() {
     setError(null);
 
     try {
+      let carPicture = car.carPicture;
+      const selectedFromLibrary = selectedLibraryByCar[id];
+      if (selectedFromLibrary) {
+        carPicture = selectedFromLibrary;
+      }
+      const pendingFile = carImageFiles[id];
+      if (pendingFile) {
+        setUploadingId(id);
+        carPicture = await uploadCarImage(pendingFile);
+        updateCarLocal(id, { carPicture });
+        setCarImageFiles((prev) => ({ ...prev, [id]: null }));
+        await loadLibraryImages();
+      }
+
       const res = await fetch(`/api/cars/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -139,6 +201,7 @@ export default function PanelCarsPage() {
           carPlate: car.carPlate,
           carBrand: car.carBrand,
           carType: car.carType,
+          carModel: car.carModel,
           carSeat: car.carSeat,
           carGear: car.carGear,
           carPower: car.carPower,
@@ -146,16 +209,18 @@ export default function PanelCarsPage() {
           carPrice: car.carPrice,
           carProvince: car.carProvince,
           carVIN: car.carVIN,
-          carPicture: car.carPicture,
+          carPicture,
           carStatus: car.carStatus,
         }),
       });
 
       const json = await res.json();
       if (!json.ok) throw new Error(json.message || "บันทึกไม่สำเร็จ");
+      setSelectedLibraryByCar((prev) => ({ ...prev, [id]: "" }));
     } catch (e: any) {
       setError(e?.message ?? "บันทึกไม่สำเร็จ");
     } finally {
+      setUploadingId(null);
       setSavingId(null);
     }
   }
@@ -186,12 +251,23 @@ export default function PanelCarsPage() {
       if (isNewCarVinInvalid) {
         throw new Error("carVIN ต้องเป็นตัวเลขเท่านั้น และห้ามเว้นว่าง");
       }
+      if (isNewCarModelMissing) {
+        throw new Error("กรุณากรอก carModel (รุ่นรถ)");
+      }
+
+      const uploadedPictureUrl = newCarImageFile
+        ? await uploadCarImage(newCarImageFile)
+        : null;
+      if (uploadedPictureUrl) {
+        await loadLibraryImages();
+      }
 
       const payload = {
         empID: Number(newCar.empID),
         carPlate: textOrNull(newCar.carPlate),
         carBrand: textOrNull(newCar.carBrand),
         carType: textOrNull(newCar.carType),
+        carModel: textOrNull(newCar.carModel),
         carSeat: numOrNull(newCar.carSeat),
         carGear: textOrNull(newCar.carGear),
         carPower: textOrNull(newCar.carPower),
@@ -199,7 +275,7 @@ export default function PanelCarsPage() {
         carProvince: textOrNull(newCar.carProvince),
         carVIN: Number(newCar.carVIN.trim()),
         carPrice: numOrNull(newCar.carPrice),
-        carQuantity: numOrNull(newCar.carQuantity),
+        carPicture: uploadedPictureUrl || textOrNull(newCarExistingPicture),
         carStatus: "Available",
       };
 
@@ -217,11 +293,14 @@ export default function PanelCarsPage() {
       if (!json.ok) throw new Error(json.message || "เพิ่มรถไม่สำเร็จ");
 
       setOpenAdd(false);
+      setNewCarImageFile(null);
+      setNewCarExistingPicture("");
       setNewCar({
         empID: "",
         carPlate: "",
         carBrand: "",
         carType: "",
+        carModel: "",
         carSeat: "",
         carGear: "",
         carPower: "",
@@ -229,7 +308,6 @@ export default function PanelCarsPage() {
         carProvince: "",
         carVIN: "",
         carPrice: "",
-        carQuantity: "",
       });
       await loadCars();
     } catch (e: any) {
@@ -324,6 +402,15 @@ export default function PanelCarsPage() {
             </div>
 
             <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">รุ่นรถ (carModel)</label>
+              <input
+                value={newCar.carModel}
+                onChange={(e) => setNewCar((p) => ({ ...p, carModel: e.target.value }))}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">จำนวนที่นั่ง (carSeat)</label>
               <input
                 type="number"
@@ -394,12 +481,56 @@ export default function PanelCarsPage() {
                 className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
+
+            <div className="md:col-span-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                  เลือกรูปจาก Supabase ที่มีอยู่
+                </label>
+                <button
+                  type="button"
+                  onClick={loadLibraryImages}
+                  className="text-xs font-bold text-blue-600 hover:text-blue-700"
+                >
+                  {libraryLoading ? "กำลังโหลด..." : "รีโหลดรายการรูป"}
+                </button>
+              </div>
+              <select
+                value={newCarExistingPicture}
+                onChange={(e) => setNewCarExistingPicture(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                <option value="">-- ไม่เลือกรูปเดิม --</option>
+                {libraryImages.map((url) => (
+                  <option key={url} value={url}>
+                    {fileNameFromUrl(url)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-3">
+              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                รูปรถ (อัปโหลดขึ้น Supabase)
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setNewCarImageFile(e.target.files?.[0] ?? null)}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              {newCarImageFile && (
+                <p className="mt-1 text-xs font-bold text-slate-500">
+                  ไฟล์ที่เลือก: {newCarImageFile.name} (ไฟล์ใหม่จะทับรูปเดิมที่เลือกไว้)
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="mt-5 flex justify-end">
             <button
               onClick={addCar}
-              disabled={isNewCarVinInvalid}
+              disabled={isNewCarVinInvalid || isNewCarModelMissing}
               className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-bold transition shadow-sm"
             >
               <Save size={16} /> เพิ่มรถ
@@ -443,6 +574,15 @@ export default function PanelCarsPage() {
                   VIN: <span className="text-slate-700">{car.carVIN ?? "-"}</span> • ราคา/วัน:{" "}
                   <span className="text-slate-700">{car.carPrice ?? "-"}</span>
                 </div>
+                {car.carPicture && (
+                  <a href={car.carPicture} target="_blank" rel="noreferrer" className="inline-block mt-1">
+                    <img
+                      src={car.carPicture}
+                      alt={`car-${car.carID}`}
+                      className="w-50 h-32 object-cover rounded-lg border border-slate-200 shadow-sm"
+                    />
+                  </a>
+                )}
               </div>
 
               <div className="flex-1 grid grid-cols-2 gap-4">
@@ -466,6 +606,18 @@ export default function PanelCarsPage() {
                     type="text"
                     value={s(car.carType)}
                     onChange={(e) => updateCarLocal(car.carID, { carType: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    รุ่นรถ (carModel)
+                  </label>
+                  <input
+                    type="text"
+                    value={s(car.carModel)}
+                    onChange={(e) => updateCarLocal(car.carID, { carModel: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
                   />
                 </div>
@@ -558,15 +710,70 @@ export default function PanelCarsPage() {
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
                   />
                 </div>
+
+                <div className="col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                      เลือกรูปเดิมจาก Supabase
+                    </label>
+                    <button
+                      type="button"
+                      onClick={loadLibraryImages}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700"
+                    >
+                      {libraryLoading ? "กำลังโหลด..." : "รีโหลดรายการรูป"}
+                    </button>
+                  </div>
+                  <select
+                    value={selectedLibraryByCar[car.carID] ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSelectedLibraryByCar((prev) => ({ ...prev, [car.carID]: value }));
+                      if (value) updateCarLocal(car.carID, { carPicture: value });
+                    }}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  >
+                    <option value="">-- ไม่เปลี่ยนรูปจากรายการ --</option>
+                    {libraryImages.map((url) => (
+                      <option key={url} value={url}>
+                        {fileNameFromUrl(url)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    อัปโหลดรูปรถใหม่ (Supabase)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      setCarImageFiles((prev) => ({ ...prev, [car.carID]: e.target.files?.[0] ?? null }))
+                    }
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                  {carImageFiles[car.carID] && (
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      ไฟล์ที่เลือก: {carImageFiles[car.carID]?.name} (ไฟล์ใหม่จะทับรูปที่เลือกจากรายการ)
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="md:w-32 flex flex-col gap-2">
                 <button
                   onClick={() => saveCar(car)}
-                  disabled={savingId === car.carID}
+                  disabled={savingId === car.carID || uploadingId === car.carID}
                   className="w-full flex justify-center items-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed text-white py-2.5 rounded-xl text-sm font-bold transition shadow-sm"
                 >
-                  <Save size={16} /> {savingId === car.carID ? "กำลังบันทึก..." : "บันทึก"}
+                  <Save size={16} />{" "}
+                  {uploadingId === car.carID
+                    ? "กำลังอัปโหลด..."
+                    : savingId === car.carID
+                    ? "กำลังบันทึก..."
+                    : "บันทึก"}
                 </button>
 
                 <button

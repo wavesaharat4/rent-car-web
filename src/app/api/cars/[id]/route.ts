@@ -28,6 +28,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       "carPlate",
       "carBrand",
       "carType",
+      "carModel",
       "carSeat",
       "carGear",
       "carPower",
