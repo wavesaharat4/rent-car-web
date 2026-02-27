@@ -3,7 +3,8 @@
 import { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { Search, Fuel, Settings2, Users, MapPin, Calendar, Map } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 interface Car {
   carID: number;
@@ -25,11 +26,13 @@ interface Car {
 
 function CarsPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const { status } = useSession();
 
   const [cars, setCars] = useState<Car[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 🌟 รวม Location ให้เหลือตัวเดียว ดึงค่าจากหน้า Home (เผื่อลูกค้าเก่าใช้ pickup ก็ยังดึงได้)
+  // ค่าจากหน้า Home
   const [location, setLocation] = useState(searchParams.get("location") || searchParams.get("pickup") || "");
   const [startDate, setStartDate] = useState(searchParams.get("start") || "");
   const [endDate, setEndDate] = useState(searchParams.get("end") || "");
@@ -42,6 +45,8 @@ function CarsPageContent() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const [bookingError, setBookingError] = useState(""); 
 
   useEffect(() => {
     const fetchCars = async () => {
@@ -58,9 +63,22 @@ function CarsPageContent() {
     fetchCars();
   }, []);
 
+  // 🌟 1. ดึงสถานที่ ยี่ห้อ และประเภท จากรถ "ทั้งหมด" ใน Database (ไม่สนใจว่าว่างหรือไม่)
+  const provinces = [...new Set(cars.map((car) => car.carProvince))].filter(Boolean);
+  const brands = [...new Set(cars.map((car) => car.carBrand))].filter(Boolean);
+  const types = [...new Set(cars.map((car) => car.carType))].filter(Boolean);
+
+  // 🌟 2. อัปเดตการแสดงผลรถ ให้แสดง "เฉพาะรถที่ว่าง (Available)"
   const filteredCars = useMemo(() => {
+    // กรองเอาเฉพาะที่ Available
     let result = cars.filter((car) => car.carStatus === "Available");
 
+    // กรองตามสถานที่ที่เลือก
+    if (location) {
+      result = result.filter((car) => car.carProvince === location);
+    }
+
+    // กรองตามคำค้นหา
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase();
       result = result.filter(
@@ -81,7 +99,7 @@ function CarsPageContent() {
     }
 
     return result;
-  }, [cars, searchQuery, selectedBrand, selectedType, sortBy]);
+  }, [cars, location, searchQuery, selectedBrand, selectedType, sortBy]);
 
   const totalPages = Math.ceil(filteredCars.length / itemsPerPage);
   const paginatedCars = filteredCars.slice(
@@ -91,118 +109,120 @@ function CarsPageContent() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedBrand, selectedType, sortBy]);
+  }, [location, searchQuery, selectedBrand, selectedType, sortBy]);
 
-  const activeCarsOnly = cars.filter((c) => c.carStatus === "Available");
-  const brands = [...new Set(activeCarsOnly.map((car) => car.carBrand))];
-  const types = [...new Set(activeCarsOnly.map((car) => car.carType))];
+  // ฟังก์ชันจัดการกดปุ่ม "จองเลย"
+  const handleBooking = (carID: number) => {
+    if (status !== "authenticated") {
+      setBookingError("กรุณาเข้าสู่ระบบ (Login) ก่อนทำการจองรถครับ");
+      return;
+    }
+    if (!startDate || !endDate) {
+      setBookingError("กรุณาระบุวันที่ให้ครบถ้วนก่อนทำการจองครับ");
+      return;
+    }
+    if (new Date(startDate) > new Date(endDate)) {
+      setBookingError("ระบุวันที่ไม่ถูกต้อง! วันที่คืนรถต้องไม่น้อยกว่าวันที่รับรถครับ");
+      return;
+    }
+    router.push(`/checkout?carId=${carID}&pickup=${location}&dropoff=${location}&start=${startDate}&end=${endDate}`);
+  };
 
   return (
-    <div className="bg-slate-50 min-h-screen pt-28 pb-20 font-sans text-slate-800">
+    <div className="bg-slate-50 min-h-screen pt-28 pb-20 font-sans text-slate-800 relative">
+      
+      {/* แจ้งเตือน Modal */}
+      {bookingError && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 md:p-8 animate-in zoom-in-95 duration-300">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-5 shadow-inner">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-black text-slate-800 mb-2">ไม่สามารถดำเนินการได้</h3>
+              <p className="text-slate-500 text-sm mb-8 leading-relaxed">{bookingError}</p>
+              <button
+                onClick={() => setBookingError("")}
+                className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+              >
+                รับทราบ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-end mb-6 gap-4">
           <div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tight">เลือกรถที่คุณถูกใจ</h1>
             <p className="text-slate-500 mt-2">
-              มีรถพร้อมให้บริการทั้งหมด <span className="font-bold text-blue-600">{filteredCars.length}</span> คัน
+              มีรถว่างพร้อมให้บริการ <span className="font-bold text-blue-600">{filteredCars.length}</span> คัน
             </p>
           </div>
         </div>
 
-        {/* 🌟 --- Booking Details Bar (แก้ไขข้อมูลได้จากตรงนี้เลย) --- */}
+        {/* --- Booking Details Bar --- */}
         <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-200 mb-4 z-40 relative">
           <h2 className="text-sm font-bold text-blue-600 mb-4 uppercase tracking-wider flex items-center gap-2">
             <MapPin size={18} /> แก้ไขกำหนดการเดินทาง
           </h2>
-          {/* ปรับ Grid ให้เป็น 3 ช่อง */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
-            {/* สถานที่รับ-คืนรถ */}
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">สถานที่รับ-คืนรถ</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1">สถานที่รับ-คืนรถ <span className="text-red-500">*</span></label>
               <div className="relative">
-                {/* ไอคอนแผนที่ด้านซ้าย (ใส่ pointer-events-none เพื่อให้คลิกทะลุไปโดนปุ่ม Select ได้) */}
                 <Map className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-                
                 <select
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   className="w-full pl-9 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium appearance-none cursor-pointer"
                 >
-                  <option value="">ระบุสถานที่</option>
-                  <option value="สนามบินสุวรรณภูมิ">สนามบินสุวรรณภูมิ</option>
-                  <option value="สนามบินดอนเมือง">สนามบินดอนเมือง</option>
-                  <option value="เชียงใหม่">เชียงใหม่</option>
-                  <option value="ภูเก็ต">ภูเก็ต</option>
+                  <option value="">ระบุสถานที่ (ทั้งหมด)</option>
+                  {provinces.map((prov) => (
+                    <option key={prov} value={prov}>{prov}</option>
+                  ))}
                 </select>
-
-                {/* ไอคอนลูกศร Dropdown ด้านขวา */}
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m6 9 6 6 6-6"/>
-                  </svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                 </div>
               </div>
             </div>
-
-            {/* วันที่รับรถ */}
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">วันที่รับรถ</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1">วันที่รับรถ <span className="text-red-500">*</span></label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium"
-                />
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium" />
               </div>
             </div>
-
-            {/* วันที่คืนรถ */}
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">วันที่คืนรถ</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1">วันที่คืนรถ <span className="text-red-500">*</span></label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium"
-                />
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium" />
               </div>
             </div>
           </div>
         </div>
 
         {/* --- Search & Filter Bar --- */}
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-8 sticky top-24 z-30">
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-8 ">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="ค้นหายี่ห้อ, รุ่น, จังหวัด..."
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+              <input type="text" placeholder="ค้นหายี่ห้อ, รุ่น..." className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             </div>
-
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-[2]">
-              <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)} className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none">
+              <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)} className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
                 <option value="">ทุกยี่ห้อ</option>
                 {brands.map((brand) => (<option key={brand} value={brand}>{brand}</option>))}
               </select>
-
-              <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none">
+              <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
                 <option value="">ทุกประเภท</option>
                 {types.map((type) => (<option key={type} value={type}>{type}</option>))}
               </select>
-
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none md:col-span-2">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none md:col-span-2 cursor-pointer">
                 <option value="">เรียงตามแนะนำ</option>
                 <option value="price_asc">ราคา: น้อยไปมาก</option>
                 <option value="price_desc">ราคา: มากไปน้อย</option>
@@ -224,16 +244,12 @@ function CarsPageContent() {
           <div className="space-y-6">
             {paginatedCars.map((car) => (
               <div key={car.carID} className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-xl hover:border-blue-300 transition-all duration-300 flex flex-col md:flex-row h-auto md:h-64">
-                
-                {/* รูปภาพด้านซ้าย */}
                 <div className="w-full md:w-1/3 relative overflow-hidden bg-slate-100">
                   <img src={car.carPicture || "/images/car-placeholder.jpg"} alt={car.carBrand} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
                   <div className="absolute top-3 left-3 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
                     {car.carType}
                   </div>
                 </div>
-
-                {/* รายละเอียดด้านขวา */}
                 <div className="flex-1 p-6 flex flex-col justify-between">
                   <div>
                     <div className="flex justify-between items-start">
@@ -246,7 +262,6 @@ function CarsPageContent() {
                         <p className="text-2xl font-black text-blue-600">฿{car.carPrice.toLocaleString()}</p>
                       </div>
                     </div>
-
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
                       <div className="flex items-center gap-2 text-slate-600 text-sm bg-slate-50 p-2 rounded-lg border border-slate-100">
                         <Users size={16} className="text-blue-500" /><span>{car.carSeat} ที่นั่ง</span>
@@ -262,19 +277,19 @@ function CarsPageContent() {
                       </div>
                     </div>
                   </div>
-
-                  {/* ปุ่มด้านล่าง */}
                   <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
-                    <Link href={`/cars/${car.carID}`} className="flex-1 py-3 text-center text-slate-700 bg-white border border-slate-300 rounded-xl font-bold text-sm hover:bg-slate-50 hover:text-slate-900 transition-all">
+                    <Link 
+                      href={`/cars/${car.carID}?start=${startDate}&end=${endDate}`} 
+                      className="flex-1 py-3 text-center text-slate-700 bg-white border border-slate-300 rounded-xl font-bold text-sm hover:bg-slate-50 hover:text-slate-900 transition-all"
+                    >
                       ดูรายละเอียด
                     </Link>
-                    {/* 🌟 ผูกค่า location ล่าสุดเข้าไปใน URL ส่งไปหน้า Checkout! */}
-                    <Link
-                      href={`/checkout?carId=${car.carID}&pickup=${location}&dropoff=${location}&start=${startDate}&end=${endDate}`}
-                      className="flex-1 py-3 text-center text-white bg-blue-600 border border-slate-300 rounded-xl font-bold text-sm hover:bg-blue-800 transition-all"
+                    <button
+                      onClick={() => handleBooking(car.carID)}
+                      className="flex-1 py-3 text-center text-white bg-blue-600 border border-slate-300 rounded-xl font-bold text-sm hover:bg-blue-800 transition-all cursor-pointer"
                     >
                       จองเลย
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -299,8 +314,8 @@ function CarsPageContent() {
 
         {!loading && filteredCars.length === 0 && (
           <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
-            <h3 className="text-xl font-bold text-slate-800">ไม่พบรถพร้อมให้บริการ</h3>
-            <p className="text-slate-500 mt-2">อาจจะไม่มีรถว่างในขณะนี้ หรือลองเปลี่ยนคำค้นหาดูนะครับ</p>
+            <h3 className="text-xl font-bold text-slate-800">ไม่พบรถที่ให้บริการ</h3>
+            <p className="text-slate-500 mt-2">ไม่มีรถว่างในสถานที่ที่คุณเลือก ลองเปลี่ยนสถานที่หรือคำค้นหาดูนะครับ</p>
           </div>
         )}
       </div>
