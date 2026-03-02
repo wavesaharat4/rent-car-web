@@ -41,8 +41,8 @@ const initialForm: EmployeeForm = {
 
 const roles = ["admin", "manager", "staff", "cs", "panel", "accounting", "finance"];
 const roleRank: Record<string, number> = {
-  admin: 0,
-  manager: 1,
+  manager: 0,
+  admin: 1,
   staff: 2,
   cs: 3,
   panel: 4,

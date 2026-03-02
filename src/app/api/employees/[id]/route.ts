@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ResultSetHeader } from "mysql2";
 
+const THAI_NOW_SQL = "CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')";
+
 const parseEmpId = (raw: string) => {
   const id = Number.parseInt(raw, 10);
   return Number.isNaN(id) ? null : id;
@@ -66,7 +68,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
     const [result] = await db.execute<ResultSetHeader>(
       `UPDATE employee
-       SET ${sets.join(", ")}, empUpdate = NOW()
+       SET ${sets.join(", ")}, empUpdate = ${THAI_NOW_SQL}
        WHERE empID = ?`,
       [...values, empID]
     );
@@ -101,7 +103,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
 
     const [result] = await db.execute<ResultSetHeader>(
       `UPDATE employee
-       SET empStatus = 'inactive', empUpdate = NOW()
+       SET empStatus = 'inactive', empUpdate = ${THAI_NOW_SQL}
        WHERE empID = ?`,
       [empID]
     );

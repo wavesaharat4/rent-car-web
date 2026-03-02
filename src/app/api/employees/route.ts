@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
 
+const THAI_NOW_SQL = "CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')";
+
 type EmployeeRow = RowDataPacket & {
   empID: number;
   empFN: string | null;
@@ -71,7 +73,7 @@ export async function POST(req: Request) {
       `INSERT INTO employee
         (empFN, empLN, empMail, empPass, empPhone, empDOB, empRole, empStatus, empCreate, empUpdate)
        VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        (?, ?, ?, ?, ?, ?, ?, ?, ${THAI_NOW_SQL}, ${THAI_NOW_SQL})`,
       [empFN, empLN, empMail, empPass, empPhone, empDOB, empRole, empStatus]
     );
 
