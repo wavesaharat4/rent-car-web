@@ -4,7 +4,8 @@ import { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { Search, Fuel, Settings2, Users, MapPin, Calendar, Map } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, getSession } from "next-auth/react";
+import Swal from "sweetalert2";
 
 interface Car {
   carID: number;
@@ -112,19 +113,43 @@ function CarsPageContent() {
   }, [location, searchQuery, selectedBrand, selectedType, sortBy]);
 
   // ฟังก์ชันจัดการกดปุ่ม "จองเลย"
-  const handleBooking = (carID: number) => {
-    if (status !== "authenticated") {
-      setBookingError("กรุณาเข้าสู่ระบบ (Login) ก่อนทำการจองรถครับ");
-      return;
+  const handleBooking = async (carID: number) => {
+    
+    // 1. ตรวจสอบสถานะการล็อกอินด้วย session
+    const session = await getSession(); 
+
+    if (!session) {
+      // โชว์แจ้งเตือนด้วย SweetAlert2 แบบเดียวกับใน Navbar
+      Swal.fire({
+        title: "กรุณาเข้าสู่ระบบ",
+        text: "คุณต้องเข้าสู่ระบบก่อนเพื่อทำการจองรถครับ",
+        icon: "warning",
+        confirmButtonColor: "#2563eb", // สีน้ำเงินเข้ากับธีม
+        confirmButtonText: "ไปหน้าเข้าสู่ระบบ",
+        showCancelButton: true,
+        cancelButtonText: "ยกเลิก",
+        customClass: { popup: 'rounded-2xl' } // ทำให้ขอบมนสวยงาม
+      }).then((result) => {
+        if (result.isConfirmed) {
+          // ถ้ากด "ไปหน้าเข้าสู่ระบบ" ค่อยให้ Router ทำงาน
+          router.push('/login'); 
+        }
+      });
+      return; // หยุดการทำงานตรงนี้ ไม่ให้รันโค้ดเช็ควันที่ต่อ
     }
+
+    // 2. ตรวจสอบการกรอกวันที่ (ดึงมาจากโค้ดเดิมของคุณ)
     if (!startDate || !endDate) {
       setBookingError("กรุณาระบุวันที่ให้ครบถ้วนก่อนทำการจองครับ");
       return;
     }
+    
     if (new Date(startDate) > new Date(endDate)) {
       setBookingError("ระบุวันที่ไม่ถูกต้อง! วันที่คืนรถต้องไม่น้อยกว่าวันที่รับรถครับ");
       return;
     }
+
+    // 3. ถ้าล็อกอินแล้วและข้อมูลครบ ให้ไปหน้า Checkout พร้อมส่งพารามิเตอร์
     router.push(`/checkout?carId=${carID}&pickup=${location}&dropoff=${location}&start=${startDate}&end=${endDate}`);
   };
 

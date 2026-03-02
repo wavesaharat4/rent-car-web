@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation"; // 🌟 เพิ่ม useSearchParams
-import { useSession } from "next-auth/react";
+import { useSession, getSession } from "next-auth/react";
+import Swal from "sweetalert2";
 
 export default function BookingClient({ car }: { car: any }) {
   const router = useRouter();
@@ -18,8 +19,22 @@ export default function BookingClient({ car }: { car: any }) {
   const handleBooking = () => {
     // 1. เช็คว่าล็อกอินหรือยัง
     if (status !== "authenticated") {
-      setBookingError("กรุณาเข้าสู่ระบบ (Login) ก่อนทำการจองรถครับ");
-      return;
+      Swal.fire({
+        title: "กรุณาเข้าสู่ระบบ",
+        text: "กรุณาเข้าสู่ระบบ (Login) ก่อนทำการจองรถครับ",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#2563eb", // สีปุ่มยืนยัน
+        cancelButtonColor: "#6b7280", // สีปุ่มยกเลิก
+        confirmButtonText: "ไปหน้าเข้าสู่ระบบ",
+        cancelButtonText: "ยกเลิก",
+        customClass: { popup: 'rounded-2xl' } // ขอบมนสวยงาม
+      }).then((result) => {
+        if (result.isConfirmed) {
+          router.push('/login'); // พาไปหน้า Login เมื่อกดตกลง
+        }
+      });
+      return; // 🛑 หยุดการทำงานตรงนี้ ไม่ให้โค้ดส่วนอื่นด้านล่างรันต่อ
     }
 
     // 2. เช็คว่าเลือกวันที่ครบไหม

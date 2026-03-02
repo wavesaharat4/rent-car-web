@@ -1,59 +1,58 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const {
-      cusID, carID, proID, bookStatus, bookCarPrice, bookTotalPrice,
-      bookStart, bookEnd, bookSProvice, bookEProvince, addons
-    } = body;
-
-    // เริ่มต้น Transaction เพื่อให้มั่นใจว่าข้อมูลบันทึกสำเร็จทั้ง 2 ตาราง
-    const connection = await db.getConnection();
-    await connection.beginTransaction();
-
+// 📌 1. ดึงข้อมูลการจองทั้งหมด (ใช้ JOIN เพื่อเอาชื่อลูกค้าและรุ่นรถมาด้วย)
+export async function GET() {
     try {
-      // 1. บันทึกลงตาราง booking
-      const [bookResult]: any = await connection.query(
-        `INSERT INTO booking (cusID, carID, proID, bookStatus, bookCarPrice, bookTotalPrice, bookStart, bookEnd, bookSProvice, bookEProvince) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [cusID, carID, proID || null, bookStatus, bookCarPrice, bookTotalPrice, bookStart, bookEnd, bookSProvice, bookEProvince]
-      );
+        const query = `
+            SELECT 
+                b.bookID, 
+                b.bookStart, 
+                b.bookEnd, 
+                b.bookStatus, 
+                b.bookTotalPrice,
+                c.cusFN, 
+                c.cusLN,
+                cr.carBrand
+            FROM booking b
+            LEFT JOIN customer c ON b.cusID = c.cusID
+            LEFT JOIN car cr ON b.carID = cr.carID
+            ORDER BY b.bookID DESC
+        `;
+        
+        // หมายเหตุ: ตรงคำว่า `cars cr` ให้เช็คชื่อตารางรถของคุณด้วยนะครับว่าชื่อ cars หรือ car
+        const [rows]: any = await db.query(query);
 
-      const newBookID = bookResult.insertId;
+        return NextResponse.json({ ok: true, data: rows });
 
-      // 2. บันทึกลงตาราง bookingaddon (ถ้ามีอุปกรณ์เสริม)
-      if (addons && addons.length > 0) {
-        for (const item of addons) {
-          await connection.query(
-            `INSERT INTO bookingaddon (bookID, addonID, bookingaddQuan, bookaddPrice) 
-             VALUES (?, ?, ?, ?)`,
-            [newBookID, item.addonID, item.quantity, item.price]
-          );
-        }
-      }
-      //อัปสถานะรถ
-      await connection.query(
-        `UPDATE car SET carStatus = 'Unavailable' WHERE carID = ?`,
-        [carID]
-      );
-
-      // ยืนยันการบันทึกข้อมูลทั้งหมดลง Database
-      await connection.commit();
-
-      return NextResponse.json({ ok: true, bookID: newBookID });
-
-    } catch (err: any) {
-      // หากขั้นตอนใดผิดพลาด ให้ยกเลิกทั้งหมด (รถจะไม่ถูกเปลี่ยนสถานะ และการจองจะไม่ถูกสร้าง)
-      if (connection) await connection.rollback();
-      console.error("Internal Transaction Error:", err);
-      return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
-    } finally {
-      if (connection) connection.release();
+    } catch (error) {
+        console.error("Get Bookings Error:", error);
+        return NextResponse.json({ ok: false, message: "เกิดข้อผิดพลาดในการดึงข้อมูลการจอง" }, { status: 500 });
     }
-  } catch (error: any) {
-    console.error("API Route Error:", error);
-    return NextResponse.json({ ok: false, error: "ไม่สามารถเชื่อมต่อฐานข้อมูลได้" }, { status: 500 });
-  }
+}
+
+// 📌 2. อัปเดตสถานะการจอง (ใช้ตอนที่พนักงาน CS กดปุ่มใน SweetAlert2)
+export async function PUT(req: Request) {
+    try {
+        const body = await req.json();
+        const { bookID, bookStatus } = body;
+
+        if (!bookID || !bookStatus) {
+            return NextResponse.json({ ok: false, message: "ข้อมูลไม่ครบถ้วน" }, { status: 400 });
+        }
+
+        const updateQuery = `
+            UPDATE booking 
+            SET bookStatus = ? 
+            WHERE bookID = ?
+        `;
+        
+        await db.query(updateQuery, [bookStatus, bookID]);
+
+        return NextResponse.json({ ok: true, message: "อัปเดตสถานะเรียบร้อยแล้ว" });
+
+    } catch (error) {
+        console.error("Update Booking Status Error:", error);
+        return NextResponse.json({ ok: false, message: "เกิดข้อผิดพลาดในการอัปเดตสถานะ" }, { status: 500 });
+    }
 }
