@@ -40,25 +40,43 @@ const initialForm: EmployeeForm = {
 };
 
 const roles = ["admin", "manager", "staff", "cs", "panel", "accounting", "finance"];
+const roleRank: Record<string, number> = {
+  admin: 0,
+  manager: 1,
+  staff: 2,
+  cs: 3,
+  panel: 4,
+  accounting: 5,
+  finance: 6,
+};
 
 const text = (v: string | null) => (v == null ? "" : v);
 const readError = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
+const toTextOrNull = (value: unknown) => {
+  if (value == null) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || value instanceof Date) {
+    return String(value);
+  }
+  return null;
+};
 
 const toEmployee = (row: unknown): EmployeeRow => {
   const record = (row ?? {}) as Record<string, unknown>;
+  const rawEmpID = Number(record.empID);
   return {
-    empID: Number(record.empID),
-    empFN: typeof record.empFN === "string" ? record.empFN : null,
-    empLN: typeof record.empLN === "string" ? record.empLN : null,
-    empMail: typeof record.empMail === "string" ? record.empMail : null,
-    empPass: typeof record.empPass === "string" ? record.empPass : null,
-    empPhone: typeof record.empPhone === "string" ? record.empPhone : null,
-    empDOB: typeof record.empDOB === "string" ? record.empDOB : null,
-    empRole: typeof record.empRole === "string" ? record.empRole : null,
-    empStatus: typeof record.empStatus === "string" ? record.empStatus : null,
-    empCreate: typeof record.empCreate === "string" ? record.empCreate : null,
-    empUpdate: typeof record.empUpdate === "string" ? record.empUpdate : null,
+    empID: Number.isFinite(rawEmpID) ? rawEmpID : 0,
+    empFN: toTextOrNull(record.empFN),
+    empLN: toTextOrNull(record.empLN),
+    empMail: toTextOrNull(record.empMail),
+    empPass: toTextOrNull(record.empPass),
+    empPhone: toTextOrNull(record.empPhone),
+    empDOB: toTextOrNull(record.empDOB),
+    empRole: toTextOrNull(record.empRole),
+    empStatus: toTextOrNull(record.empStatus),
+    empCreate: toTextOrNull(record.empCreate),
+    empUpdate: toTextOrNull(record.empUpdate),
   };
 };
 
@@ -88,9 +106,20 @@ export default function AdminUsersPage() {
 
   const filteredEmployees = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return employees;
+    const sorted = [...employees].sort((a, b) => {
+      const aRole = text(a.empRole).toLowerCase();
+      const bRole = text(b.empRole).toLowerCase();
+      const aRoleRank = roleRank[aRole] ?? Number.MAX_SAFE_INTEGER;
+      const bRoleRank = roleRank[bRole] ?? Number.MAX_SAFE_INTEGER;
+      if (aRoleRank !== bRoleRank) return aRoleRank - bRoleRank;
 
-    return employees.filter((emp) => {
+      const aId = Number.isFinite(a.empID) ? a.empID : 0;
+      const bId = Number.isFinite(b.empID) ? b.empID : 0;
+      return aId - bId;
+    });
+    if (!q) return sorted;
+
+    return sorted.filter((emp) => {
       const fullName = `${text(emp.empFN)} ${text(emp.empLN)}`.trim().toLowerCase();
       return (
         fullName.includes(q) ||
@@ -112,7 +141,9 @@ export default function AdminUsersPage() {
         throw new Error(json?.message || "โหลดข้อมูลพนักงานไม่สำเร็จ");
       }
 
-      const normalized: EmployeeRow[] = json.map((row: unknown) => toEmployee(row));
+      const normalized: EmployeeRow[] = json
+        .map((row: unknown) => toEmployee(row))
+        .sort((a, b) => b.empID - a.empID);
 
       setEmployees(normalized);
     } catch (e: unknown) {
@@ -191,23 +222,6 @@ export default function AdminUsersPage() {
       setError(readError(e, "บันทึกข้อมูลพนักงานไม่สำเร็จ"));
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function inactivateEmployee(empID: number) {
-    const confirmed = window.confirm("ต้องการเปลี่ยนสถานะพนักงานเป็น inactive ใช่หรือไม่?");
-    if (!confirmed) return;
-
-    setError(null);
-    try {
-      const res = await fetch(`/api/employees/${empID}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.message || "อัปเดตสถานะไม่สำเร็จ");
-      }
-      await loadEmployees();
-    } catch (e: unknown) {
-      setError(readError(e, "อัปเดตสถานะไม่สำเร็จ"));
     }
   }
 
@@ -416,13 +430,6 @@ export default function AdminUsersPage() {
                             title="แก้ไข"
                           >
                             <Edit size={16} />
-                          </button>
-                          <button
-                            onClick={() => inactivateEmployee(emp.empID)}
-                            className="px-3 py-1.5 text-xs rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 font-bold"
-                            title="เปลี่ยนสถานะเป็น inactive"
-                          >
-                            Inactive
                           </button>
                         </div>
                       </td>
