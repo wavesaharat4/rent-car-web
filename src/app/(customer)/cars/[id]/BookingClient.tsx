@@ -12,7 +12,7 @@ export default function BookingClient({ car }: { car: any }) {
   // 🌟 ตั้งค่าเริ่มต้น โดยดึงมาจาก URL พารามิเตอร์ (ถ้ามี)
   const [startDate, setStartDate] = useState(searchParams.get("start") || "");
   const [endDate, setEndDate] = useState(searchParams.get("end") || "");
-  
+
   const [bookingError, setBookingError] = useState("");
 
   const handleBooking = () => {
@@ -28,9 +28,24 @@ export default function BookingClient({ car }: { car: any }) {
       return;
     }
 
-    // 3. เช็คว่าวันคืนรถ ต้องไม่น้อยกว่าวันรับรถ
-    if (new Date(startDate) > new Date(endDate)) {
-      setBookingError("ระบุวันที่ไม่ถูกต้อง! วันที่คืนรถต้องไม่น้อยกว่าวันที่รับรถครับ");
+    // 3. เช็คว่าวันคืนรถ ต้องไม่น้อยกว่าวันรับรถ และต้องเช่าอย่างน้อย 1 วัน
+    const startObj = new Date(startDate);
+    const endObj = new Date(endDate);
+    const now = new Date();
+
+    if (startObj < now) {
+      setBookingError("ไม่สามารถจองรถย้อนหลังได้ครับ");
+      return;
+    }
+
+    if (startObj >= endObj) {
+      setBookingError("ระบุวันที่ไม่ถูกต้อง! วันและเวลาคืนรถต้องมากกว่าวันรับรถครับ");
+      return;
+    }
+
+    const diffTime = endObj.getTime() - startObj.getTime();
+    if (diffTime < 24 * 60 * 60 * 1000) {
+      setBookingError("ต้องเช่ารถขั้นต่ำ 1 วัน (24 ชั่วโมง) ครับ");
       return;
     }
 
@@ -85,21 +100,21 @@ export default function BookingClient({ car }: { car: any }) {
             </div>
 
             <div>
-              <label className="block text-xs text-blue-900 font-bold mb-1 uppercase tracking-wider">วันรับรถ</label>
-              <input 
-                type="date" 
+              <label className="block text-xs text-blue-900 font-bold mb-1 uppercase tracking-wider">วัน-เวลารับรถ</label>
+              <input
+                type="datetime-local"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className={`w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium ${bookingError.includes('วันที่') && !startDate ? 'border-red-400 bg-red-50' : 'border-slate-200'}`} 
+                className={`w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium ${bookingError.includes('วันที่') && !startDate ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}
               />
             </div>
             <div>
-              <label className="block text-xs text-blue-900 font-bold mb-1 uppercase tracking-wider">วันคืนรถ</label>
-              <input 
-                type="date" 
+              <label className="block text-xs text-blue-900 font-bold mb-1 uppercase tracking-wider">วัน-เวลาคืนรถ</label>
+              <input
+                type="datetime-local"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className={`w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium ${bookingError.includes('วันที่') && !endDate ? 'border-red-400 bg-red-50' : 'border-slate-200'}`} 
+                className={`w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium ${bookingError.includes('วันที่') && !endDate ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}
               />
             </div>
           </div>
