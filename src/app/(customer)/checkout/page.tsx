@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import Swal from "sweetalert2";
 
 // นำเข้า Component
 import StepAddons from "@/components/checkout/StepAddons";
@@ -60,7 +61,13 @@ function CheckoutContent() {
   const [addonCounts, setAddonsCounts] = useState<Record<number, number>>({});
   const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
   const [selectedPromo, setSelectedPromo] = useState<PromoDB | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState("creditCard");
+  const [paymentMethod, setPaymentMethod] = useState<"slip" | "cash">("slip");
+  const [slipFile, setSlipFile] = useState<File | null>(null);
+  const [slipPreview, setSlipPreview] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [paymentResult, setPaymentResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [bookID, setBookID] = useState<number | null>(null);
+  const [paymentDone, setPaymentDone] = useState(false);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -148,7 +155,7 @@ function CheckoutContent() {
         Math.abs(
           new Date(endDateStr).getTime() - new Date(startDateStr).getTime(),
         ) /
-          (1000 * 60 * 60 * 24),
+        (1000 * 60 * 60 * 24),
       ),
     );
   }, [startDateStr, endDateStr]);
@@ -220,53 +227,218 @@ function CheckoutContent() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const confirmBooking = async () => {
-    setLoading(true);
-    try {
-      // เตรียมข้อมูล Addons ที่ถูกเลือก (เฉพาะอันที่มีจำนวน > 0)
-      const selectedAddons = Object.entries(addonCounts)
-        .filter(([_, count]) => count > 0)
-        .map(([id, count]) => {
-          const addon = addonsData.find((a) => a.addonID === Number(id));
-          return {
-            addonID: Number(id),
-            quantity: count,
-            price: addon ? addon.addonPrice : 0,
-          };
-        });
+  // 📌 สร้าง Booking ก่อน (ยังไม่จ่ายเงิน = Pending)
+  const createBooking = async (): Promise<number | null> => {
+    const selectedAddons = Object.entries(addonCounts)
+      .filter(([_, count]) => count > 0)
+      .map(([id, count]) => {
+        const addon = addonsData.find((a) => a.addonID === Number(id));
+        return { addonID: Number(id), quantity: count, price: addon ? addon.addonPrice : 0 };
+      });
 
-      const bookingData = {
-        cusID: userData.cusID,
-        carID: car?.carID,
-        proID: selectedPromo?.proID || null,
-        bookStatus: "Pending", // หรือ "Success" ตามสถานะเริ่มต้นที่คุณต้องการ
-        bookCarPrice: carPriceTotal,
-        bookTotalPrice: grandTotal,
-        bookStart: startDateStr,
-        bookEnd: endDateStr,
-        bookSProvice: car?.carProvince,
-        bookEProvince: car?.carProvince,
-        addons: selectedAddons,
-      };
+    try {
+      // เพิ่ม timeout 15 วินาที กันค้าง
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bookingData),
+        signal: controller.signal,
+        body: JSON.stringify({
+          cusID: userData.cusID,
+          carID: car?.carID,
+          proID: selectedPromo?.proID || null,
+          bookCarPrice: carPriceTotal,
+          bookTotalPrice: grandTotal,
+          bookStart: startDateStr,
+          bookEnd: endDateStr,
+          bookSProvice: car?.carProvince,
+          bookEProvince: car?.carProvince,
+          addons: selectedAddons,
+        }),
       });
+      clearTimeout(timeoutId);
 
       const result = await res.json();
       if (result.ok) {
-        setStep(6); // ไปหน้าสำเร็จ
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      } else {
-        alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล: " + result.error);
+        setBookID(result.bookID);
+        return result.bookID;
       }
-    } catch (error) {
-      console.error("Confirm Booking Error:", error);
-      alert("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
+      await Swal.fire({
+        icon: "error",
+        title: "สร้างการจองไม่สำเร็จ",
+        text: result.error || "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์",
+        confirmButtonColor: "#2563eb",
+      });
+      return null;
+    } catch (err: any) {
+      console.error("Create Booking Error:", err);
+      await Swal.fire({
+        icon: "error",
+        title: "สร้างการจองไม่สำเร็จ",
+        text: err.name === "AbortError"
+          ? "การเชื่อมต่อใช้เวลานานเกินไป กรุณาลองใหม่"
+          : "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่",
+        confirmButtonColor: "#2563eb",
+      });
+      return null;
+    }
+  };
+
+  // 📌 จัดการเลือกไฟล์สลิป (แสดง Preview)
+  const handleSlipFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSlipFile(file);
+      setSlipPreview(URL.createObjectURL(file));
+      setPaymentResult(null);
+    }
+  };
+
+  // 📌 ยิงตรวจสลิป (อัพ Supabase → ตรวจ SlipOK → บันทึก DB)
+  const handleVerifySlip = async () => {
+    if (!slipFile) return Swal.fire({ icon: "warning", title: "กรุณาเลือกรูปสลิปก่อน", confirmButtonColor: "#2563eb" });
+    setVerifying(true);
+    setPaymentResult(null);
+
+    try {
+      // สร้าง booking ก่อน (ถ้ายังไม่มี)
+      let currentBookID = bookID;
+      if (!currentBookID) {
+        currentBookID = await createBooking();
+        if (!currentBookID) { setVerifying(false); return; }
+      }
+
+      // 1. อัพโหลดรูปสลิปไป Supabase
+      const uploadForm = new FormData();
+      uploadForm.append("file", slipFile);
+      const uploadRes = await fetch("/api/upload/slip", { method: "POST", body: uploadForm });
+      const uploadData = await uploadRes.json();
+      if (!uploadData.ok) {
+        setPaymentResult({ ok: false, message: "อัพโหลดรูปสลิปไม่สำเร็จ: " + uploadData.message });
+        Swal.fire({ icon: "error", title: "อัพโหลดสลิปไม่สำเร็จ", text: uploadData.message, confirmButtonColor: "#2563eb" });
+        setVerifying(false);
+        return;
+      }
+
+      // 2. ส่งไปตรวจสลิป
+      const cusName = `${userData?.cusFN || ""} ${userData?.cusLN || ""}`.trim();
+      const verifyRes = await fetch("/api/payment/verify-slip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookID: currentBookID,
+          imageUrl: uploadData.url,
+          cusName: cusName,
+          expectedAmount: grandTotal,
+        }),
+      });
+      const verifyData = await verifyRes.json();
+
+      if (verifyData.ok) {
+        // ✅ สลิปผ่าน → แสดง Swal สำเร็จ แล้ว redirect ไปหน้าการจองของฉัน
+        setPaymentResult({ ok: true, message: verifyData.message });
+        setPaymentDone(true);
+        await Swal.fire({
+          icon: "success",
+          title: "ชำระเงินสำเร็จ!",
+          html: `
+            <p style="margin-bottom:8px">การจองหมายเลข <b>#${currentBookID}</b> ได้รับการยืนยันแล้ว</p>
+            <p style="color:#64748b;font-size:14px">เลขอ้างอิง: ${verifyData.transRef || "-"}</p>
+            <p style="color:#64748b;font-size:14px">ชื่อผู้โอน: ${verifyData.senderName || "-"}</p>
+            <p style="color:#64748b;font-size:14px">จำนวน: ${Number(verifyData.amount || grandTotal).toLocaleString()} บาท</p>
+          `,
+          confirmButtonText: "ไปหน้าการจองของฉัน",
+          confirmButtonColor: "#2563eb",
+          allowOutsideClick: false,
+        });
+        router.push("/my-booking");
+      } else {
+        // ❌ สลิปไม่ผ่าน → แสดง error ชัดเจน + ให้ส่งสลิปใหม่ได้
+        setPaymentResult({ ok: false, message: verifyData.error });
+        // รีเซ็ตสลิปเพื่อให้ส่งใหม่ได้
+        setSlipFile(null);
+        setSlipPreview(null);
+        Swal.fire({
+          icon: "error",
+          title: "สลิปไม่ผ่านการตรวจสอบ",
+          html: `<p style="color:#dc2626;font-weight:bold">${verifyData.error}</p><p style="color:#64748b;font-size:14px;margin-top:8px">กรุณาอัพโหลดสลิปใหม่อีกครั้ง</p>`,
+          confirmButtonText: "ลองใหม่",
+          confirmButtonColor: "#2563eb",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setPaymentResult({ ok: false, message: "เกิดข้อผิดพลาดในการตรวจสลิป" });
+      Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่", confirmButtonColor: "#2563eb" });
     } finally {
-      setLoading(false);
+      setVerifying(false);
+    }
+  };
+
+  // 📌 จ่ายเงินสดหน้าร้าน
+  const handleCashPayment = async () => {
+    // ถามยืนยันก่อน
+    const confirm = await Swal.fire({
+      icon: "question",
+      title: "ยืนยันเลือกจ่ายเงินสด?",
+      html: `<p>ยอดเงิน <b>${grandTotal.toLocaleString()} บาท</b></p><p style="color:#64748b;font-size:14px">กรุณานำเงินมาชำระที่เคาน์เตอร์ภายใน 1 ชั่วโมง</p>`,
+      showCancelButton: true,
+      confirmButtonText: "ยืนยัน",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonColor: "#2563eb",
+      cancelButtonColor: "#94a3b8",
+    });
+    if (!confirm.isConfirmed) return;
+
+    setVerifying(true);
+    setPaymentResult(null);
+
+    try {
+      // สร้าง booking ก่อน (ถ้ายังไม่มี)
+      let currentBookID = bookID;
+      if (!currentBookID) {
+        currentBookID = await createBooking();
+        if (!currentBookID) { setVerifying(false); return; }
+      }
+
+      const res = await fetch("/api/payment/cash", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookID: currentBookID, payAmount: grandTotal }),
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        setPaymentResult({ ok: true, message: data.message });
+        setPaymentDone(true);
+        // ✅ สำเร็จ → แสดง Swal แล้ว redirect ไปการจองของฉัน
+        await Swal.fire({
+          icon: "success",
+          title: "บันทึกการจองสำเร็จ!",
+          html: `
+            <p>การจองหมายเลข <b>#${currentBookID}</b></p>
+            <p style="margin-top:8px">กรุณานำเงิน <b>${grandTotal.toLocaleString()} บาท</b> มาชำระที่หน้าร้าน</p>
+            <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:12px;padding:12px;margin-top:12px;color:#92400e;font-weight:bold;font-size:14px">
+              ⏰ ชำระเงินภายใน 1 ชั่วโมง มิฉะนั้นการจองจะถูกยกเลิกอัตโนมัติ
+            </div>
+          `,
+          confirmButtonText: "ไปหน้าการจองของฉัน",
+          confirmButtonColor: "#2563eb",
+          allowOutsideClick: false,
+        });
+        router.push("/my-booking");
+      } else {
+        setPaymentResult({ ok: false, message: data.error });
+        Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: data.error, confirmButtonColor: "#2563eb" });
+      }
+    } catch (err) {
+      console.error(err);
+      setPaymentResult({ ok: false, message: "เกิดข้อผิดพลาด" });
+      Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้", confirmButtonColor: "#2563eb" });
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -305,7 +477,7 @@ function CheckoutContent() {
                       {car.carProvince}
                     </p>
                     <span className="text-slate-500">
-                      {startDateStr || "-"}
+                      {startDateStr ? new Date(startDateStr).toLocaleString("th-TH", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}
                     </span>
                   </div>
                   <div>
@@ -315,7 +487,9 @@ function CheckoutContent() {
                     <p className="font-bold text-slate-700 truncate text-sm">
                       {car.carProvince}
                     </p>
-                    <span className="text-slate-500">{endDateStr || "-"}</span>
+                    <span className="text-slate-500">
+                      {endDateStr ? new Date(endDateStr).toLocaleString("th-TH", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -517,115 +691,262 @@ function CheckoutContent() {
           />
         )}
 
-        {/* Step 5: เลือกช่องทางชำระเงิน */}
+        {/* ================= Step 5: ช่องทางชำระเงินจริง ================= */}
         {step === 5 && (
           <div className="animate-in fade-in slide-in-from-right-8 duration-500">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-10">
+
+              {/* ===== ฝั่งซ้าย: เลือกวิธีจ่ายเงิน ===== */}
               <div className="lg:col-span-7 space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+
+                {/* 🔹 ปุ่มเลือก 2 แบบ: สลิป / เงินสด */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  {/* ปุ่ม: โอนเงิน (สลิป) */}
                   <div
-                    onClick={() => setPaymentMethod("creditCard")}
-                    className={`p-5 rounded-[24px] border-2 cursor-pointer ${paymentMethod === "creditCard" ? "border-blue-600 bg-blue-50/30" : "border-slate-200 bg-white"}`}
+                    onClick={() => !paymentDone && setPaymentMethod("slip")}
+                    className={`p-5 rounded-[24px] border-2 cursor-pointer transition-all duration-200 ${paymentMethod === "slip"
+                      ? "border-blue-600 bg-blue-50/50 shadow-lg shadow-blue-100"
+                      : "border-slate-200 bg-white hover:border-blue-300"
+                      } ${paymentDone ? "opacity-60 pointer-events-none" : ""}`}
                   >
-                    <span
-                      className={`text-lg font-black ${paymentMethod === "creditCard" ? "text-blue-700" : "text-slate-700"}`}
-                    >
-                      บัตรเครดิต / เดบิต
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {/* ไอคอนธนาคาร */}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === "slip" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
+                        }`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <span className={`text-lg font-black block ${paymentMethod === "slip" ? "text-blue-700" : "text-slate-700"}`}>
+                          โอนเงิน / สลิป
+                        </span>
+                        <span className="text-xs text-slate-400">สแกน QR แล้วแนบสลิป</span>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* ปุ่ม: เงินสดหน้าร้าน */}
                   <div
-                    onClick={() => setPaymentMethod("promptPay")}
-                    className={`p-5 rounded-[24px] border-2 cursor-pointer ${paymentMethod === "promptPay" ? "border-blue-600 bg-blue-50/30" : "border-slate-200 bg-white"}`}
+                    onClick={() => !paymentDone && setPaymentMethod("cash")}
+                    className={`p-5 rounded-[24px] border-2 cursor-pointer transition-all duration-200 ${paymentMethod === "cash"
+                      ? "border-blue-600 bg-blue-50/50 shadow-lg shadow-blue-100"
+                      : "border-slate-200 bg-white hover:border-blue-300"
+                      } ${paymentDone ? "opacity-60 pointer-events-none" : ""}`}
                   >
-                    <span
-                      className={`text-lg font-black ${paymentMethod === "promptPay" ? "text-blue-700" : "text-slate-700"}`}
-                    >
-                      สแกน QR พร้อมเพย์
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === "cash" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
+                        }`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <span className={`text-lg font-black block ${paymentMethod === "cash" ? "text-blue-700" : "text-slate-700"}`}>
+                          เงินสดหน้าร้าน
+                        </span>
+                        <span className="text-xs text-slate-400">จ่ายที่เคาน์เตอร์</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* เนื้อหาจำลองการชำระเงิน */}
-                {paymentMethod === "promptPay" && (
-                  <div className="bg-white rounded-[28px] border border-slate-200 p-8 md:p-12 text-center flex flex-col items-center">
-                    <div className="bg-[#113566] text-white py-2 px-8 rounded-full mb-8 font-bold">
-                      Thai QR Payment
+                {/* ========== เนื้อหา: โอนเงินผ่านสลิป ========== */}
+                {paymentMethod === "slip" && (
+                  <div className="space-y-6">
+                    {/* QR Code สำหรับโอนเงิน */}
+                    <div className="bg-white rounded-[28px] border border-slate-200 p-8 md:p-10 text-center flex flex-col items-center">
+                      <div className="bg-[#113566] text-white py-2 px-8 rounded-full mb-6 font-bold text-sm tracking-wide">
+                        สแกน QR เพื่อโอนเงิน
+                      </div>
+                      {/* รูป QR จริง */}
+                      <div className="w-full max-w-[280px] rounded-3xl overflow-hidden border-4 border-slate-100 mb-4 shadow-lg">
+                        <img src="/qrpayakkaraphon.webp" alt="QR PromptPay" className="w-full h-auto" />
+                      </div>
+                      <p className="text-slate-500 text-sm mt-2">โอนเงินจำนวน <span className="font-black text-blue-600 text-lg">{grandTotal.toLocaleString()}</span> บาท</p>
+                      <p className="text-slate-400 text-xs mt-1">แล้วแนบสลิปด้านล่าง</p>
                     </div>
-                    <div className="w-full max-w-[320px] aspect-square bg-slate-100 rounded-3xl border-8 border-slate-50 flex items-center justify-center mb-8">
-                      <span className="font-bold text-slate-400">
-                        QR Code จำลอง
-                      </span>
+
+                    {/* อัพโหลดสลิป */}
+                    <div className="bg-white rounded-[28px] border border-slate-200 p-6 md:p-8">
+                      <h4 className="font-black text-lg text-slate-800 mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-blue-600">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                        </svg>
+                        แนบสลิปการโอนเงิน
+                      </h4>
+
+                      {/* กล่องเลือกไฟล์ */}
+                      <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all duration-200">
+                        {slipPreview ? (
+                          <img src={slipPreview} alt="สลิป" className="max-h-44 rounded-xl object-contain" />
+                        ) : (
+                          <div className="flex flex-col items-center text-slate-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 mb-2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 003.75 21z" />
+                            </svg>
+                            <span className="font-bold">คลิกเพื่อเลือกรูปสลิป</span>
+                            <span className="text-xs mt-1">รองรับ JPG, PNG, WEBP</span>
+                          </div>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/jfif"
+                          className="hidden"
+                          onChange={handleSlipFileChange}
+                          disabled={paymentDone}
+                        />
+                      </label>
+
+                      {/* ปุ่มตรวจสลิป */}
+                      {slipFile && !paymentDone && (
+                        <button
+                          onClick={handleVerifySlip}
+                          disabled={verifying}
+                          className="w-full bg-blue-600 text-white py-4 text-lg rounded-2xl font-black mt-6 hover:bg-blue-500 transition-colors shadow-[0_4px_20px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {verifying ? (
+                            <>
+                              <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                              กำลังตรวจสอบสลิป...
+                            </>
+                          ) : (
+                            "ตรวจสอบและชำระเงิน"
+                          )}
+                        </button>
+                      )}
                     </div>
+                  </div>
+                )}
+
+                {/* ========== เนื้อหา: จ่ายเงินสดหน้าร้าน ========== */}
+                {paymentMethod === "cash" && (
+                  <div className="bg-white rounded-[28px] border border-slate-200 p-8 md:p-10 text-center flex flex-col items-center">
+                    <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center mb-6">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 text-blue-600">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-800 mb-3">ชำระเงินสดที่หน้าร้าน</h3>
+                    <p className="text-slate-500 mb-2">กรุณานำยอดเงิน <span className="font-black text-blue-600 text-xl">{grandTotal.toLocaleString()}</span> บาท มาชำระที่เคาน์เตอร์</p>
+                    <p className="text-slate-400 text-sm mb-8">พนักงานจะกดยืนยันรับเงินให้อัตโนมัติ หลังจากรับชำระเรียบร้อย</p>
+
+                    {!paymentDone && (
+                      <button
+                        onClick={handleCashPayment}
+                        disabled={verifying}
+                        className="bg-blue-600 text-white px-10 py-4 text-lg rounded-2xl font-black hover:bg-blue-500 transition-colors shadow-[0_4px_20px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {verifying ? (
+                          <>
+                            <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                            กำลังบันทึก...
+                          </>
+                        ) : (
+                          "ยืนยันเลือกจ่ายเงินสด"
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* ===== แสดงผลลัพธ์การตรวจสลิป / การเลือกเงินสด ===== */}
+                {paymentResult && (
+                  <div className={`rounded-2xl p-5 border-2 flex items-start gap-3 animate-in fade-in duration-300 ${paymentResult.ok
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                    : "bg-red-50 border-red-200 text-red-800"
+                    }`}>
+                    {paymentResult.ok ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5">
+                        <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-red-500 shrink-0 mt-0.5">
+                        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-1.72 6.97a.75.75 0 10-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 101.06 1.06L12 13.06l1.72 1.72a.75.75 0 101.06-1.06L13.06 12l1.72-1.72a.75.75 0 10-1.06-1.06L12 10.94l-1.72-1.72z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    <p className="font-bold text-sm leading-relaxed">{paymentResult.message}</p>
                   </div>
                 )}
               </div>
 
+              {/* ===== ฝั่งขวา: สรุปยอดเงิน ===== */}
               <div className="lg:col-span-5">
                 <div className="bg-[#0f172a] text-white rounded-[32px] p-6 md:p-8 sticky top-32">
                   <h3 className="text-xl font-black mb-6 border-b border-slate-700/50 pb-4">
                     สรุปการชำระเงิน
                   </h3>
-
                   <div className="space-y-4 mb-6">
                     <div className="flex justify-between text-slate-300">
                       <span>ค่าเช่ารถและบริการเสริม</span>
-                      <span className="font-bold">
-                        {(carPriceTotal + addonsTotal).toLocaleString()} ฿
-                      </span>
+                      <span className="font-bold">{(carPriceTotal + addonsTotal).toLocaleString()} ฿</span>
                     </div>
                     {selectedPromo && (
                       <div className="flex justify-between text-emerald-400">
                         <span>ส่วนลด</span>
-                        <span className="font-bold">
-                          -{discountAmount.toLocaleString()} ฿
-                        </span>
+                        <span className="font-bold">-{discountAmount.toLocaleString()} ฿</span>
                       </div>
                     )}
                     <div className="flex justify-between text-slate-300">
                       <span>ภาษี (7%)</span>
-                      <span className="font-bold">
-                        +{vatAmount.toLocaleString()} ฿
-                      </span>
+                      <span className="font-bold">+{vatAmount.toLocaleString()} ฿</span>
                     </div>
                   </div>
-
                   <div className="pt-6 border-t border-slate-700/50">
-                    <span className="block text-slate-400 text-sm">
-                      ยอดชำระสุทธิ
-                    </span>
+                    <span className="block text-slate-400 text-sm">ยอดชำระสุทธิ</span>
                     <div className="text-4xl font-black text-white">
-                      {grandTotal.toLocaleString()}{" "}
-                      <span className="text-lg">฿</span>
+                      {grandTotal.toLocaleString()} <span className="text-lg">฿</span>
                     </div>
                   </div>
-
-                  <button
-                    onClick={confirmBooking}
-                    className="w-full bg-blue-600 py-4 text-lg rounded-2xl font-black mt-8 hover:bg-blue-500 transition-colors shadow-[0_4px_20px_rgba(37,99,235,0.4)]"
-                  >
-                    ชำระเงินและยืนยันการจอง
-                  </button>
+                  {/* แสดงวิธีที่เลือก */}
+                  <div className="mt-6 pt-4 border-t border-slate-700/50 flex items-center gap-2 text-slate-400 text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                    </svg>
+                    {paymentMethod === "slip" ? "ชำระด้วยการโอนเงิน (สลิป)" : "ชำระเงินสดหน้าร้าน"}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         )}
 
+        {/* ================= Step 6: ผลลัพธ์การจอง ================= */}
         {step === 6 && (
           <div className="text-center py-20 animate-in zoom-in-95 duration-500 max-w-2xl mx-auto">
             <div className="bg-white rounded-[32px] shadow-2xl border border-slate-100 overflow-hidden py-12 px-6">
-              <h2 className="text-4xl text-green-500 font-black mb-4">
-                การจองสำเร็จ!
-              </h2>
-              <p className="text-slate-500 mb-8">
-                ใบเสร็จได้ถูกส่งไปที่อีเมล {formData.email || "ของคุณ"} แล้ว
-              </p>
-              <Link
-                href="/cars"
-                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold"
-              >
-                กลับไปหน้าเลือกรถ
-              </Link>
+              {/* ไอคอนสำเร็จ */}
+              <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 text-emerald-500">
+                  <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+                </svg>
+              </div>
+
+              {paymentMethod === "slip" ? (
+                <>
+                  <h2 className="text-3xl text-emerald-600 font-black mb-3">ชำระเงินสำเร็จ!</h2>
+                  <p className="text-slate-500 mb-2">การจองของคุณได้รับการยืนยันเรียบร้อยแล้ว</p>
+                  <p className="text-slate-400 text-sm mb-8">หมายเลขการจอง: <span className="font-black text-blue-600">#{bookID}</span></p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-3xl text-blue-600 font-black mb-3">บันทึกการจองสำเร็จ!</h2>
+                  <p className="text-slate-500 mb-2">กรุณานำเงิน <span className="font-black text-blue-600">{grandTotal.toLocaleString()}</span> บาท มาชำระที่หน้าร้าน</p>
+                  <p className="text-slate-400 text-sm mb-2">หมายเลขการจอง: <span className="font-black text-blue-600">#{bookID}</span></p>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-700 text-sm font-bold mt-4 mb-8 inline-block">
+                    ⏰ กรุณาชำระเงินภายใน 1 ชั่วโมง มิฉะนั้นการจองจะถูกยกเลิกอัตโนมัติ
+                  </div>
+                </>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
+                <Link
+                  href="/cars"
+                  className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-500 transition-colors"
+                >
+                  กลับไปหน้าเลือกรถ
+                </Link>
+              </div>
             </div>
           </div>
         )}

@@ -54,7 +54,6 @@ export async function POST(req: Request) {
                 { status: 400 }
             );
         }
-
         const [result]: any = await db.execute(
             `INSERT INTO car
         (empID, carPlate, carBrand, carType, carModel, carSeat, carGear, carPower, carDetail,

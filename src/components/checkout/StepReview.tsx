@@ -105,13 +105,13 @@ export default function StepReview({
                 <div className="flex justify-between">
                   <span className="text-slate-500">รับรถ</span>
                   <span className="font-bold">
-                    {car.carProvince}, {startDateStr || "-"}
+                    {car.carProvince}, {startDateStr ? new Date(startDateStr).toLocaleString("th-TH", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">คืนรถ</span>
                   <span className="font-bold">
-                    {car.carProvince}, {endDateStr || "-"}
+                    {car.carProvince}, {endDateStr ? new Date(endDateStr).toLocaleString("th-TH", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}
                   </span>
                 </div>
               </div>

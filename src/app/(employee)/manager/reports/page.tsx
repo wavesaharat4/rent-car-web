@@ -1,150 +1,426 @@
 "use client";
 
-import { BarChart3, TrendingUp, Users, CarFront, ThaiBaht } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BarChart3, CarFront, Banknote, Users, TrendingUp } from "lucide-react";
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    LineChart, Line, AreaChart, Area
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
 } from "recharts";
 
-// ข้อมูลจำลองสำหรับกราฟเด้อ (เดี๋ยวตั่วแบคเอนสิพ่น JSON มาให้แบบนี่ล่ะ)
-const revenueData = [
-    { name: 'มกราคม', income: 40000, bookings: 24 },
-    { name: 'กุมภาพันธ์', income: 30000, bookings: 18 },
-    { name: 'มีนาคม', income: 55000, bookings: 35 },
-    { name: 'เมษายน', income: 85000, bookings: 50 },
-    { name: 'พฤษภาคม', income: 45000, bookings: 28 },
-    { name: 'มิถุนายน', income: 60000, bookings: 38 },
+type Period = "daily" | "weekly" | "monthly";
+
+type TrendItem = {
+  periodKey: string;
+  revenue: number;
+  bookings: number;
+};
+
+type ProvinceBookingItem = {
+  province: string;
+  bookings: number;
+};
+
+type Summary = {
+  totalRevenue: number;
+  totalBookings: number;
+  uniqueCustomers: number;
+};
+
+type ReportResponse = {
+  period: Period;
+  province: string;
+  date?: string | null;
+  month?: string | null;
+  summary: Summary;
+  trend: TrendItem[];
+  provinceBookings: ProvinceBookingItem[];
+  provinces: string[];
+  updatedAt: string;
+};
+
+type ErrorResponse = {
+  message?: string;
+  error?: string;
+  code?: string;
+};
+
+const periodOptions: Array<{ value: Period; label: string }> = [
+  { value: "daily", label: "รายวัน (30 วันล่าสุด)" },
+  { value: "weekly", label: "รายสัปดาห์ (เลือกเดือน)" },
+  { value: "monthly", label: "รายเดือน (12 เดือนล่าสุด)" },
 ];
 
+const numberFmt = new Intl.NumberFormat("th-TH");
+const currencyFmt = new Intl.NumberFormat("th-TH", {
+  style: "currency",
+  currency: "THB",
+  maximumFractionDigits: 0,
+});
+const getTodayInputDate = (): string => {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+};
+const getCurrentMonthInput = (): string => getTodayInputDate().slice(0, 7);
+const getRecentMonthOptions = (count: number): Array<{ value: string; label: string }> => {
+  const base = new Date();
+  const options: Array<{ value: string; label: string }> = [];
+  for (let i = 0; i < count; i += 1) {
+    const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("th-TH", { month: "long", year: "numeric" });
+    options.push({ value, label });
+  }
+  return options;
+};
+const filterControlClass =
+  "w-full box-border [field-sizing:fixed] bg-white border border-slate-200 text-sm font-semibold text-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500";
+const filterSlotClass = "flex-none w-[180px] min-w-[180px] max-w-[180px]";
+
+const formatXAxisLabel = (periodKey: string, period: Period): string => {
+  const d = new Date(periodKey);
+  if (Number.isNaN(d.getTime())) return periodKey;
+
+  if (period === "daily") {
+    return d.toLocaleDateString("th-TH", { day: "2-digit", month: "short" });
+  }
+  if (period === "weekly") {
+    return `สัปดาห์ ${d.toLocaleDateString("th-TH", { day: "2-digit", month: "short" })}`;
+  }
+  return d.toLocaleDateString("th-TH", { month: "short", year: "2-digit" });
+};
+
 export default function ManagerReportsPage() {
-    return (
-        <div className="space-y-8">
+  const [period, setPeriod] = useState<Period>("monthly");
+  const [province, setProvince] = useState("all");
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayInputDate());
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonthInput());
+  const [report, setReport] = useState<ReportResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const monthOptions = useMemo(() => getRecentMonthOptions(24), []);
 
-            {/* ส่วนหัวหน้าจอ Manager ซงสิหล่อๆจักหน่อย */}
-            <div>
-                <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                    <BarChart3 className="text-blue-600" size={32} />
-                    ภาพรวมของกิจการ (Dashboard)
-                </h1>
-                <p className="text-slate-500 text-sm mt-2 font-medium">สรุปยอดเช่า รายได้ และสถิติต่างๆ ที่เฮ็ดให้ผู้จัดการหูตาสว่าง</p>
-            </div>
+  useEffect(() => {
+    const controller = new AbortController();
 
-            {/* ควอเตอร์สรุปยอด ยัดใส่ Grid งามๆ เด้อ */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    const loadReport = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams({
+          period,
+          province,
+        });
+        if (period === "daily" && selectedDate) {
+          params.set("date", selectedDate);
+        }
+        if (period === "weekly" && selectedMonth) {
+          params.set("month", selectedMonth);
+        }
+        const res = await fetch(`/api/manager/reports?${params.toString()}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          let payload: ErrorResponse | null = null;
+          try {
+            payload = (await res.json()) as ErrorResponse;
+          } catch {
+            payload = null;
+          }
+          const serverMessage =
+            [payload?.message, payload?.error, payload?.code].filter(Boolean).join(" | ") ||
+            "โหลดรายงานไม่สำเร็จ";
+          throw new Error(serverMessage);
+        }
+        const json = (await res.json()) as ReportResponse;
+        setReport(json);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error(err);
+        const msg = err instanceof Error ? err.message : "ไม่สามารถโหลดข้อมูลรายงานได้";
+        setError(msg);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-                {/* การ์ดที่ 1: รายได้ */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between group hover:border-blue-200 transition-colors">
-                    <div>
-                        <p className="text-sm font-bold text-slate-500 mb-1">รายได้เดือนนี้</p>
-                        <h3 className="text-2xl font-black text-slate-800">฿315,000</h3>
-                        <p className="text-xs font-bold text-green-500 flex items-center mt-2 gap-1">
-                            <TrendingUp size={14} /> +12% เทียบกับเดือนก่อน
-                        </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center group-hover:bg-blue-600 transition-colors">
-                        <span className="text-blue-600 font-black text-xl group-hover:text-white transition-colors">฿</span>
-                    </div>
-                </div>
+    loadReport();
+    return () => controller.abort();
+  }, [period, province, selectedDate, selectedMonth]);
 
-                {/* การ์ดที่ 2: จำนวนจอง */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between group hover:border-emerald-200 transition-colors">
-                    <div>
-                        <p className="text-sm font-bold text-slate-500 mb-1">ยอดจองรถรวม</p>
-                        <h3 className="text-2xl font-black text-slate-800">193 ครั้ง</h3>
-                        <p className="text-xs font-bold text-green-500 flex items-center mt-2 gap-1">
-                            <TrendingUp size={14} /> +5% เทียบกับเดือนก่อน
-                        </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center group-hover:bg-emerald-500 transition-colors">
-                        <CarFront className="text-emerald-500 group-hover:text-white transition-colors" size={24} />
-                    </div>
-                </div>
+  const chartData = useMemo(
+    () =>
+      (report?.trend ?? []).map((item) => ({
+        ...item,
+        label: formatXAxisLabel(item.periodKey, period),
+      })),
+    [report?.trend, period]
+  );
+  const isDailyProvinceView = period === "daily";
+  const bookingChartData = useMemo(
+    () =>
+      isDailyProvinceView
+        ? (report?.provinceBookings ?? []).map((item) => ({
+            label: item.province,
+            bookings: item.bookings,
+          }))
+        : chartData,
+    [isDailyProvinceView, report?.provinceBookings, chartData]
+  );
 
-                {/* การ์ดที่ 3: ลูกค้าใหม่ */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between group hover:border-purple-200 transition-colors">
-                    <div>
-                        <p className="text-sm font-bold text-slate-500 mb-1">ลูกค้าใหม่</p>
-                        <h3 className="text-2xl font-black text-slate-800">+48 คน</h3>
-                        <p className="text-xs font-bold text-slate-400 mt-2">ภายใน 30 วันที่ผ่านมา</p>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center group-hover:bg-purple-500 transition-colors">
-                        <Users className="text-purple-500 group-hover:text-white transition-colors" size={22} />
-                    </div>
-                </div>
+  const summary = report?.summary ?? {
+    totalRevenue: 0,
+    totalBookings: 0,
+    uniqueCustomers: 0,
+  };
+  const avgRevenuePerBooking =
+    summary.totalBookings > 0 ? summary.totalRevenue / summary.totalBookings : 0;
+  const updatedAtText = report?.updatedAt
+    ? new Date(report.updatedAt).toLocaleString("th-TH")
+    : "-";
 
-                {/* การ์ดที่ 4: ความพึงพอใจเป้าหมาย */}
-                <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl shadow-lg shadow-blue-500/20 text-white flex flex-col justify-between relative overflow-hidden">
-                    <div className="relative z-10">
-                        <p className="text-blue-100 font-bold text-sm mb-1">คะแนนรีวิวเฉลี่ย</p>
-                        <h3 className="text-3xl font-black">4.8 <span className="text-lg text-blue-200 font-medium">/ 5.0</span></h3>
-                    </div>
-                    <div className="relative z-10 mt-3 flex items-center gap-1 text-blue-100 text-xs font-semibold">
-                        ⭐⭐⭐⭐⭐ สุดจัดปลัดบอก
-                    </div>
-                    {/* ลายเส้นตกแต่งให้งามๆ */}
-                    <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
-                    <div className="absolute -left-6 -bottom-6 w-24 h-24 bg-indigo-400/20 rounded-full blur-xl"></div>
-                </div>
-
-            </div>
-
-            {/* ส่วนแสดงกราฟ (Charts) ใช้ Recharts เด้อ สิได้หน้าตาสวยๆ แอนิเมชันปังๆ */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                {/* กราฟหลัก ใหญ่ๆ เบิ้มๆ */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="mb-6 flex justify-between items-center">
-                        <h2 className="text-lg font-black text-slate-800">แนวโน้มรายได้ 6 เดือนย้อนหลัง</h2>
-                        <select className="bg-slate-50 border border-slate-200 text-sm font-bold text-slate-600 rounded-lg px-3 py-1 outline-none">
-                            <option>ปี 2026</option>
-                            <option>ปี 2025</option>
-                        </select>
-                    </div>
-
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                                <defs>
-                                    {/* กำหนด Gradient สีน้ำเงินไล่ลงมาสวยๆ */}
-                                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b', fontWeight: 600 }} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b', fontWeight: 600 }} dx={-10} tickFormatter={(value) => `฿${value / 1000}k`} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
-                                    itemStyle={{ fontWeight: 700 }}
-                                />
-                                <Area type="monotone" dataKey="income" name="เงินเข้า (บาท)" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* กราฟด่านข้าง สถิติการจอง */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="mb-6">
-                        <h2 className="text-lg font-black text-slate-800">สถิติการจองรถ</h2>
-                        <p className="text-xs font-semibold text-slate-500">จำนวนการเปิดบิลเช่ารถตลอด 6 เดือน</p>
-                    </div>
-
-                    <div className="h-[280px] w-full mt-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={revenueData} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b', fontWeight: 600 }} />
-                                <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
-                                <Bar dataKey="bookings" name="ยอดจอง (ครั้ง)" fill="#0ea5e9" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-            </div>
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <BarChart3 className="text-blue-600" size={32} />
+            รายงานยอดขายผู้จัดการ
+          </h1>
+          <p className="text-slate-500 text-sm mt-2 font-medium">
+            ดูยอดขายตามวัน สัปดาห์ เดือน และกรองตามจังหวัด
+          </p>
         </div>
-    );
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className={filterSlotClass}>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as Period)}
+              className={filterControlClass}
+            >
+              {periodOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className={filterSlotClass}>
+            <select
+              value={province}
+              onChange={(e) => setProvince(e.target.value)}
+              className={filterControlClass}
+            >
+              <option value="all">ทุกจังหวัด</option>
+              {(report?.provinces ?? []).map((prov) => (
+                <option key={prov} value={prov}>
+                  {prov}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {period === "daily" && (
+            <div className={filterSlotClass}>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className={filterControlClass}
+              />
+            </div>
+          )}
+
+          {period === "weekly" && (
+            <div className={filterSlotClass}>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className={filterControlClass}
+              >
+                {monthOptions.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-semibold p-4">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between">
+          <div>
+            <p className="text-sm font-bold text-slate-500 mb-1">ยอดขายรวม</p>
+            <h3 className="text-2xl font-black text-slate-800">
+              {currencyFmt.format(summary.totalRevenue)}
+            </h3>
+            <p className="text-xs font-semibold text-slate-500 mt-2">ตามตัวกรองที่เลือก</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
+            <Banknote className="text-blue-600" size={22} />
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between">
+          <div>
+            <p className="text-sm font-bold text-slate-500 mb-1">จำนวนการจอง</p>
+            <h3 className="text-2xl font-black text-slate-800">
+              {numberFmt.format(summary.totalBookings)} ครั้ง
+            </h3>
+            <p className="text-xs font-semibold text-slate-500 mt-2">ไม่นับรายการยกเลิก</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
+            <CarFront className="text-emerald-600" size={22} />
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between">
+          <div>
+            <p className="text-sm font-bold text-slate-500 mb-1">ลูกค้าที่ใช้งาน</p>
+            <h3 className="text-2xl font-black text-slate-800">
+              {numberFmt.format(summary.uniqueCustomers)} คน
+            </h3>
+            <p className="text-xs font-semibold text-slate-500 mt-2">ลูกค้าไม่ซ้ำในช่วงที่เลือก</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center">
+            <Users className="text-purple-600" size={22} />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl shadow-lg shadow-blue-500/20 text-white">
+          <p className="text-blue-100 text-sm font-bold mb-1">รายได้เฉลี่ยต่อ 1 การจอง</p>
+          <h3 className="text-3xl font-black">{currencyFmt.format(avgRevenuePerBooking)}</h3>
+          <p className="mt-3 text-blue-100 text-xs font-semibold flex items-center gap-1">
+            <TrendingUp size={14} /> คำนวณจากยอดขายรวม / จำนวนจอง
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-lg font-black text-slate-800">แนวโน้มยอดขาย</h2>
+            <span className="text-xs font-semibold text-slate-500">
+              {loading ? "กำลังโหลด..." : `อัปเดต ${updatedAtText}`}
+            </span>
+          </div>
+
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: "#64748b", fontWeight: 600 }}
+                  dy={10}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: "#64748b", fontWeight: 600 }}
+                  dx={-10}
+                  tickFormatter={(value) => `${Math.round(value / 1000)}k`}
+                />
+                <Tooltip
+                  formatter={(value: number | string | undefined) =>
+                    currencyFmt.format(Number(value ?? 0))
+                  }
+                  contentStyle={{
+                    borderRadius: "12px",
+                    border: "none",
+                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  name="ยอดขาย"
+                  stroke="#2563eb"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorIncome)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="mb-6">
+            <h2 className="text-lg font-black text-slate-800">จำนวนการจอง</h2>
+            <p className="text-xs font-semibold text-slate-500">
+              {isDailyProvinceView ? "แยกตามจังหวัดของวันที่เลือก" : "แยกตามช่วงเวลาที่เลือก"}
+            </p>
+          </div>
+
+          <div className="h-[280px] w-full mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={bookingChartData}
+                margin={{ top: 0, right: 0, left: isDailyProvinceView ? 0 : -25, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 10, fill: "#64748b" }}
+                  dy={10}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: "#64748b", fontWeight: 600 }}
+                />
+                <Tooltip
+                  formatter={(value: number | string | undefined) =>
+                    `${numberFmt.format(Number(value ?? 0))} ครั้ง`
+                  }
+                  cursor={{ fill: "#f8fafc" }}
+                  contentStyle={{
+                    borderRadius: "8px",
+                    border: "none",
+                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                  }}
+                />
+                <Bar
+                  dataKey="bookings"
+                  name={isDailyProvinceView ? "ยอดจองรายจังหวัด" : "ยอดจอง"}
+                  fill="#0ea5e9"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={40}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

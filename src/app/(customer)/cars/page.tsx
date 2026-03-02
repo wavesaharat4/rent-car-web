@@ -47,7 +47,7 @@ function CarsPageContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const [bookingError, setBookingError] = useState(""); 
+  const [bookingError, setBookingError] = useState("");
 
   useEffect(() => {
     const fetchCars = async () => {
@@ -143,9 +143,24 @@ function CarsPageContent() {
       setBookingError("กรุณาระบุวันที่ให้ครบถ้วนก่อนทำการจองครับ");
       return;
     }
-    
-    if (new Date(startDate) > new Date(endDate)) {
-      setBookingError("ระบุวันที่ไม่ถูกต้อง! วันที่คืนรถต้องไม่น้อยกว่าวันที่รับรถครับ");
+
+    const startObj = new Date(startDate);
+    const endObj = new Date(endDate);
+    const now = new Date();
+
+    if (startObj < now) {
+      setBookingError("ไม่สามารถจองรถย้อนหลังได้ครับ");
+      return;
+    }
+
+    if (startObj >= endObj) {
+      setBookingError("ระบุวันที่ไม่ถูกต้อง! วันและเวลาคืนรถต้องมากกว่าวันรับรถครับ");
+      return;
+    }
+
+    const diffTime = endObj.getTime() - startObj.getTime();
+    if (diffTime < 24 * 60 * 60 * 1000) {
+      setBookingError("ต้องเช่ารถขั้นต่ำ 1 วัน (24 ชั่วโมง) ครับ");
       return;
     }
 
@@ -155,7 +170,7 @@ function CarsPageContent() {
 
   return (
     <div className="bg-slate-50 min-h-screen pt-28 pb-20 font-sans text-slate-800 relative">
-      
+
       {/* แจ้งเตือน Modal */}
       {bookingError && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -210,22 +225,22 @@ function CarsPageContent() {
                   ))}
                 </select>
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
                 </div>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">วันที่รับรถ <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-bold text-slate-500 mb-1">วัน-เวลารับรถ <span className="text-red-500">*</span></label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium" />
+                <input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium" />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">วันที่คืนรถ <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-bold text-slate-500 mb-1">วัน-เวลาคืนรถ <span className="text-red-500">*</span></label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium" />
+                <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium" />
               </div>
             </div>
           </div>
@@ -303,8 +318,8 @@ function CarsPageContent() {
                     </div>
                   </div>
                   <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
-                    <Link 
-                      href={`/cars/${car.carID}?start=${startDate}&end=${endDate}`} 
+                    <Link
+                      href={`/cars/${car.carID}?start=${startDate}&end=${endDate}`}
                       className="flex-1 py-3 text-center text-slate-700 bg-white border border-slate-300 rounded-xl font-bold text-sm hover:bg-slate-50 hover:text-slate-900 transition-all"
                     >
                       ดูรายละเอียด

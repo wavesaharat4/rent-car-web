@@ -81,9 +81,24 @@ export default function Home() {
       return;
     }
 
-    // เช็คว่าวันคืนรถ ต้องไม่น้อยกว่าวันรับรถ
-    if (new Date(startDate) > new Date(endDate)) {
-      setSearchError("ระบุวันที่ไม่ถูกต้อง! วันที่คืนรถต้องไม่น้อยกว่าวันที่รับรถครับ");
+    // เช็คว่าวันคืนรถ ต้องไม่น้อยกว่าวันรับรถ และต้องเช่าอย่างน้อย 1 วัน (24 ชั่วโมง)
+    const startObj = new Date(startDate);
+    const endObj = new Date(endDate);
+    const now = new Date();
+
+    if (startObj < now) {
+      setSearchError("ไม่สามารถจองรถย้อนหลังได้ครับ");
+      return;
+    }
+
+    if (startObj >= endObj) {
+      setSearchError("ระบุวันที่ไม่ถูกต้อง! วันและเวลาคืนรถต้องมากกว่าวันรับรถครับ");
+      return;
+    }
+
+    const diffTime = endObj.getTime() - startObj.getTime();
+    if (diffTime < 24 * 60 * 60 * 1000) {
+      setSearchError("ต้องเช่ารถขั้นต่ำ 1 วัน (24 ชั่วโมง) ครับ");
       return;
     }
 
@@ -93,7 +108,7 @@ export default function Home() {
 
   return (
     <div className="bg-slate-50 text-blue-950 min-h-screen font-sans selection:bg-blue-200 relative">
-      
+
       {/* 🌟 4. แจ้งเตือนแบบ Modal (Pop-up) สำหรับหน้า Home */}
       {searchError && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -148,7 +163,7 @@ export default function Home() {
                 สถานที่รับ-คืนรถ
               </label>
               {/* ผูก value และ onChange กับ State ลบ required ออกเพื่อให้ Modal ทำงาน */}
-              <select 
+              <select
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 className="w-full text-blue-950 bg-transparent outline-none cursor-pointer appearance-none font-medium"
@@ -167,22 +182,22 @@ export default function Home() {
             </div>
 
             <div className="flex-1 w-full px-5 py-3 border-b md:border-b-0 md:border-r border-blue-100">
-              <label className="block text-xs text-blue-600 font-bold mb-1 uppercase tracking-wider">วันรับรถ</label>
-              <input 
-                type="date" 
+              <label className="block text-xs text-blue-600 font-bold mb-1 uppercase tracking-wider">วัน-เวลารับรถ</label>
+              <input
+                type="datetime-local"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full text-blue-950 bg-transparent outline-none cursor-pointer font-medium" 
+                className="w-full text-blue-950 bg-transparent outline-none cursor-pointer font-medium"
               />
             </div>
 
             <div className="flex-1 w-full px-5 py-3">
-              <label className="block text-xs text-blue-600 font-bold mb-1 uppercase tracking-wider">วันคืนรถ</label>
-              <input 
-                type="date" 
+              <label className="block text-xs text-blue-600 font-bold mb-1 uppercase tracking-wider">วัน-เวลาคืนรถ</label>
+              <input
+                type="datetime-local"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full text-blue-950 bg-transparent outline-none cursor-pointer font-medium" 
+                className="w-full text-blue-950 bg-transparent outline-none cursor-pointer font-medium"
               />
             </div>
 
