@@ -377,70 +377,7 @@ function CheckoutContent() {
     }
   };
 
-  // 📌 จ่ายเงินสดหน้าร้าน
-  const handleCashPayment = async () => {
-    // ถามยืนยันก่อน
-    const confirm = await Swal.fire({
-      icon: "question",
-      title: "ยืนยันเลือกจ่ายเงินสด?",
-      html: `<p>ยอดเงิน <b>${grandTotal.toLocaleString()} บาท</b></p><p style="color:#64748b;font-size:14px">กรุณานำเงินมาชำระที่เคาน์เตอร์ภายใน 1 ชั่วโมง</p>`,
-      showCancelButton: true,
-      confirmButtonText: "ยืนยัน",
-      cancelButtonText: "ยกเลิก",
-      confirmButtonColor: "#2563eb",
-      cancelButtonColor: "#94a3b8",
-    });
-    if (!confirm.isConfirmed) return;
-
-    setVerifying(true);
-    setPaymentResult(null);
-
-    try {
-      // สร้าง booking ก่อน (ถ้ายังไม่มี)
-      let currentBookID = bookID;
-      if (!currentBookID) {
-        currentBookID = await createBooking();
-        if (!currentBookID) { setVerifying(false); return; }
-      }
-
-      const res = await fetch("/api/payment/cash", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookID: currentBookID, payAmount: grandTotal }),
-      });
-      const data = await res.json();
-
-      if (data.ok) {
-        setPaymentResult({ ok: true, message: data.message });
-        setPaymentDone(true);
-        // ✅ สำเร็จ → แสดง Swal แล้ว redirect ไปการจองของฉัน
-        await Swal.fire({
-          icon: "success",
-          title: "บันทึกการจองสำเร็จ!",
-          html: `
-            <p>การจองหมายเลข <b>#${currentBookID}</b></p>
-            <p style="margin-top:8px">กรุณานำเงิน <b>${grandTotal.toLocaleString()} บาท</b> มาชำระที่หน้าร้าน</p>
-            <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:12px;padding:12px;margin-top:12px;color:#92400e;font-weight:bold;font-size:14px">
-              ⏰ ชำระเงินภายใน 1 ชั่วโมง มิฉะนั้นการจองจะถูกยกเลิกอัตโนมัติ
-            </div>
-          `,
-          confirmButtonText: "ไปหน้าการจองของฉัน",
-          confirmButtonColor: "#2563eb",
-          allowOutsideClick: false,
-        });
-        router.push("/my-booking");
-      } else {
-        setPaymentResult({ ok: false, message: data.error });
-        Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: data.error, confirmButtonColor: "#2563eb" });
-      }
-    } catch (err) {
-      console.error(err);
-      setPaymentResult({ ok: false, message: "เกิดข้อผิดพลาด" });
-      Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้", confirmButtonColor: "#2563eb" });
-    } finally {
-      setVerifying(false);
-    }
-  };
+  
 
   // ==================== RENDER ====================
   if (loading)
@@ -694,10 +631,10 @@ function CheckoutContent() {
         {/* ================= Step 5: ช่องทางชำระเงินจริง ================= */}
         {step === 5 && (
           <div className="animate-in fade-in slide-in-from-right-8 duration-500">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-10">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-10 ">
 
               {/* ===== ฝั่งซ้าย: เลือกวิธีจ่ายเงิน ===== */}
-              <div className="lg:col-span-7 space-y-6">
+              <div className="lg:col-span-7 space-y-6 ">
 
                 {/* 🔹 ปุ่มเลือก 2 แบบ: สลิป / เงินสด */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -722,30 +659,6 @@ function CheckoutContent() {
                           โอนเงิน / สลิป
                         </span>
                         <span className="text-xs text-slate-400">สแกน QR แล้วแนบสลิป</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ปุ่ม: เงินสดหน้าร้าน */}
-                  <div
-                    onClick={() => !paymentDone && setPaymentMethod("cash")}
-                    className={`p-5 rounded-[24px] border-2 cursor-pointer transition-all duration-200 ${paymentMethod === "cash"
-                      ? "border-blue-600 bg-blue-50/50 shadow-lg shadow-blue-100"
-                      : "border-slate-200 bg-white hover:border-blue-300"
-                      } ${paymentDone ? "opacity-60 pointer-events-none" : ""}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === "cash" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
-                        }`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <span className={`text-lg font-black block ${paymentMethod === "cash" ? "text-blue-700" : "text-slate-700"}`}>
-                          เงินสดหน้าร้าน
-                        </span>
-                        <span className="text-xs text-slate-400">จ่ายที่เคาน์เตอร์</span>
                       </div>
                     </div>
                   </div>
@@ -803,7 +716,7 @@ function CheckoutContent() {
                         <button
                           onClick={handleVerifySlip}
                           disabled={verifying}
-                          className="w-full bg-blue-600 text-white py-4 text-lg rounded-2xl font-black mt-6 hover:bg-blue-500 transition-colors shadow-[0_4px_20px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          className="w-full bg-blue-600 text-white py-4 text-lg rounded-2xl font-black mt-6 hover:bg-blue-500 transition-colors shadow-[0_4px_20px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                         >
                           {verifying ? (
                             <>
@@ -816,37 +729,6 @@ function CheckoutContent() {
                         </button>
                       )}
                     </div>
-                  </div>
-                )}
-
-                {/* ========== เนื้อหา: จ่ายเงินสดหน้าร้าน ========== */}
-                {paymentMethod === "cash" && (
-                  <div className="bg-white rounded-[28px] border border-slate-200 p-8 md:p-10 text-center flex flex-col items-center">
-                    <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center mb-6">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 text-blue-600">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-2xl font-black text-slate-800 mb-3">ชำระเงินสดที่หน้าร้าน</h3>
-                    <p className="text-slate-500 mb-2">กรุณานำยอดเงิน <span className="font-black text-blue-600 text-xl">{grandTotal.toLocaleString()}</span> บาท มาชำระที่เคาน์เตอร์</p>
-                    <p className="text-slate-400 text-sm mb-8">พนักงานจะกดยืนยันรับเงินให้อัตโนมัติ หลังจากรับชำระเรียบร้อย</p>
-
-                    {!paymentDone && (
-                      <button
-                        onClick={handleCashPayment}
-                        disabled={verifying}
-                        className="bg-blue-600 text-white px-10 py-4 text-lg rounded-2xl font-black hover:bg-blue-500 transition-colors shadow-[0_4px_20px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      >
-                        {verifying ? (
-                          <>
-                            <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
-                            กำลังบันทึก...
-                          </>
-                        ) : (
-                          "ยืนยันเลือกจ่ายเงินสด"
-                        )}
-                      </button>
-                    )}
                   </div>
                 )}
 

@@ -168,7 +168,7 @@ export default function StepReview({
         </div>
         <button
           onClick={() => setIsPromoModalOpen(true)}
-          className="bg-black text-white font-bold py-3 px-10 rounded-xl hover:-translate-y-1 transition-all shadow-md"
+          className="bg-black text-white font-bold py-3 px-10 rounded-xl hover:-translate-y-1 transition-all shadow-md cursor-pointer"
         >
           + เลือกโค้ด
         </button>
@@ -322,7 +322,7 @@ export default function StepReview({
       <div className="mt-10 flex justify-end pb-10">
         <button
           onClick={handleProceedToPayment}
-          className="bg-blue-600 text-white font-bold py-4 px-14 rounded-2xl hover:bg-blue-700 transition-all shadow-lg active:scale-95 flex items-center gap-2"
+          className="bg-blue-600 text-white font-bold py-4 px-14 rounded-2xl hover:bg-blue-700 transition-all shadow-lg active:scale-95 flex items-center gap-2 cursor-pointer"
         >
           ยืนยันเพื่อไปหน้าชำระเงิน
           <svg
