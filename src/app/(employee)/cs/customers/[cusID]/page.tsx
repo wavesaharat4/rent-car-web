@@ -6,7 +6,8 @@ import Link from "next/link";
 import Swal from "sweetalert2";
 import {
     ArrowLeft, User, Mail, Phone, MapPin, Calendar,
-    CreditCard, ShieldCheck, Clock, FileText, Trash2, Edit3
+    CreditCard, ShieldCheck, Clock, FileText, Trash2, Edit3,
+    CheckCircle2, PauseCircle, Ban, X, Loader2 // 🌟 เพิ่มไอคอนสำหรับ Modal ใหม่
 } from "lucide-react";
 
 interface CustomerDetailDB {
@@ -33,6 +34,11 @@ export default function CustomerDetailPage() {
     const [customer, setCustomer] = useState<CustomerDetailDB | null>(null);
     const [loading, setLoading] = useState(true);
 
+    // 🌟 State สำหรับควบคุมหน้าต่าง Modal แบบใหม่
+    const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+    const [selectedStatus, setSelectedStatus] = useState<string>("");
+    const [isUpdating, setIsUpdating] = useState(false);
+
     const fetchCustomerDetail = async () => {
         if (!cusID) return;
         try {
@@ -56,47 +62,42 @@ export default function CustomerDetailPage() {
         fetchCustomerDetail();
     }, [cusID]);
 
-    // 🌟 ฟังก์ชันอัปเดตสถานะลูกค้า
-    const handleUpdateStatus = async () => {
+    // 🌟 1. ฟังก์ชันสำหรับ "เปิด" หน้าต่าง Modal
+    const handleOpenStatusModal = () => {
         if (!customer) return;
+        setSelectedStatus(customer.cusStatus || 'Active'); // ตั้งค่าเริ่มต้นให้ตรงกับ DB
+        setIsStatusModalOpen(true);
+    };
 
-        const { value: newStatus } = await Swal.fire({
-            title: `อัปเดตสถานะลูกค้า`,
-            input: 'select',
-            inputOptions: {
-                'Active': '🟢 ใช้งานปกติ (Active)',
-                'Inactive': '⚪ ระงับชั่วคราว (Inactive)',
-                'Banned': '🔴 แบน (Banned)'
-            },
-            inputValue: customer.cusStatus || 'Active',
-            showCancelButton: true,
-            confirmButtonColor: "#2563eb",
-            confirmButtonText: "บันทึก",
-            cancelButtonText: "ยกเลิก",
-            customClass: { popup: 'rounded-3xl' }
-        });
+    // 🌟 2. ฟังก์ชัน "บันทึก" ข้อมูลจาก Modal ลง Database
+    const saveCustomerStatus = async () => {
+        if (!customer || selectedStatus === customer.cusStatus) {
+            setIsStatusModalOpen(false);
+            return;
+        }
 
-        if (newStatus && newStatus !== customer.cusStatus) {
-            try {
-                const res = await fetch(`/api/customer/${cusID}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cusStatus: newStatus })
-                });
+        setIsUpdating(true);
+        try {
+            const res = await fetch(`/api/customer/${cusID}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cusStatus: selectedStatus })
+            });
 
-                if (res.ok) {
-                    Swal.fire({ icon: 'success', title: 'อัปเดตสถานะสำเร็จ', showConfirmButton: false, timer: 1500, customClass: { popup: 'rounded-3xl' } });
-                    setCustomer({ ...customer, cusStatus: newStatus });
-                } else {
-                    throw new Error("Failed to update status");
-                }
-            } catch (error) {
-                Swal.fire('ข้อผิดพลาด', 'ไม่สามารถอัปเดตสถานะได้', 'error');
+            if (res.ok) {
+                setIsStatusModalOpen(false); // ปิดหน้าต่าง
+                Swal.fire({ icon: 'success', title: 'อัปเดตสถานะสำเร็จ', showConfirmButton: false, timer: 1500, customClass: { popup: 'rounded-3xl' } });
+                setCustomer({ ...customer, cusStatus: selectedStatus }); // อัปเดต UI ทันที
+            } else {
+                throw new Error("Failed to update status");
             }
+        } catch (error) {
+            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถอัปเดตสถานะได้', 'error');
+        } finally {
+            setIsUpdating(false);
         }
     };
 
-    // 🌟 2. ฟังก์ชันลบข้อมูลลูกค้า (ปรับให้โชว์ Error จาก API)
     const handleDeleteCustomer = async () => {
         const result = await Swal.fire({
             title: 'ยืนยันการลบข้อมูล?',
@@ -116,18 +117,15 @@ export default function CustomerDetailPage() {
                     method: 'DELETE'
                 });
 
-                // ดึงข้อมูลที่ API ตอบกลับมา (รวมถึงข้อความ Error 1451 ที่เราเพิ่งเขียน)
                 const data = await res.json(); 
 
                 if (res.ok) {
                     await Swal.fire({ icon: 'success', title: 'ลบข้อมูลสำเร็จ', showConfirmButton: false, timer: 1500, customClass: { popup: 'rounded-3xl' } });
                     router.push('/cs/customers');
                 } else {
-                    // ถ้าลบไม่สำเร็จ (เช่น ติด Foreign Key) ให้โยนข้อความจาก API ไปเข้า catch
                     throw new Error(data.message || "Failed to delete customer");
                 }
             } catch (error: any) {
-                // 🌟 โชว์ข้อความแจ้งเตือนที่ได้มาจาก API
                 Swal.fire({
                     icon: 'error',
                     title: 'ลบข้อมูลไม่สำเร็จ',
@@ -169,10 +167,17 @@ export default function CustomerDetailPage() {
         );
     }
 
-    return (
-        <div className="w-full max-w-5xl mx-auto space-y-6 pb-12 px-4 md:px-6">
+    // 🌟 ข้อมูลตัวเลือกสถานะสำหรับโชว์ในการ์ด
+    const statusOptions = [
+        { id: 'Active', label: 'ใช้งานปกติ (Active)', desc: 'ลูกค้าสามารถทำการจองรถได้ปกติ', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', activeRing: 'ring-emerald-500 border-emerald-500' },
+        { id: 'Inactive', label: 'ระงับชั่วคราว (Inactive)', desc: 'พักการใช้งานชั่วคราว หรือรอยืนยันตัวตน', icon: PauseCircle, color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200', activeRing: 'ring-slate-500 border-slate-500' },
+        { id: 'Banned', label: 'แบน (Banned)', desc: 'แบนถาวร ห้ามลูกค้าทำรายการใดๆ เด็ดขาด', icon: Ban, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', activeRing: 'ring-red-500 border-red-500' },
+    ];
 
-            {/* Header (เหลือแค่ปุ่มย้อนกลับและหัวข้อ) */}
+    return (
+        <div className="w-full min-w-0 space-y-6 pb-12 px-2 md:px-6">
+
+            {/* Header */}
             <div className="flex flex-wrap items-center gap-4 bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100 w-full">
                 <Link href="/cs/customers" className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition text-slate-500 shrink-0">
                     <ArrowLeft size={20} />
@@ -207,12 +212,12 @@ export default function CustomerDetailPage() {
                         </div>
 
                         <div className="flex-1 min-w-0 w-full space-y-4 pt-2">
-                            {/* 🌟 ย้ายปุ่มเปลี่ยนสถานะมาอยู่ในบรรทัดเดียวกับชื่อ */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <h2 className="text-xl md:text-2xl font-black text-slate-800 truncate">{customer.cusFN} {customer.cusLN}</h2>
+                                {/* 🌟 เรียกใช้งานปุ่มเปิด Modal แทน */}
                                 <button
-                                    onClick={handleUpdateStatus}
-                                    className="flex items-center justify-center gap-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-100 py-2 px-4 rounded-xl font-bold text-sm transition-all shadow-sm w-full sm:w-auto shrink-0"
+                                    onClick={handleOpenStatusModal}
+                                    className="flex items-center justify-center gap-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-100 py-2 px-4 rounded-xl font-bold text-sm transition-all shadow-sm w-full sm:w-auto shrink-0 cursor-pointer"
                                 >
                                     <Edit3 size={16} /> เปลี่ยนสถานะ
                                 </button>
@@ -322,7 +327,7 @@ export default function CustomerDetailPage() {
                     </div>
                 </div>
 
-                {/* 🌟 4. Danger Zone (ปุ่มลบข้อมูล ย้ายมาล่างสุด) */}
+                {/* 4. Danger Zone */}
                 <div className="pt-8 pb-4 flex justify-end border-t border-slate-200 mt-4">
                     <button
                         onClick={handleDeleteCustomer}
@@ -333,6 +338,87 @@ export default function CustomerDetailPage() {
                 </div>
 
             </div>
+
+            {/* =========================================================
+                🌟 Custom Modal สำหรับเปลี่ยนสถานะ (ย่อขนาดเล็กลง 50%) 
+            ========================================================= */}
+            {isStatusModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    {/* เปลี่ยนจาก max-w-lg เป็น max-w-sm (กะทัดรัดขึ้น) และลดความโค้งมนลงเล็กน้อย */}
+                    <div className="bg-white w-full max-w-sm rounded-[1.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        
+                        {/* ส่วนหัว Modal (ลด Padding และขนาดตัวอักษร) */}
+                        <div className="p-4 md:p-5 border-b border-slate-100 flex justify-between items-center bg-white">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-800">จัดการสถานะลูกค้า</h3>
+                                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                    อัปเดตสิทธิ์ของ <span className="text-blue-600 font-bold">{customer.cusFN}</span>
+                                </p>
+                            </div>
+                            <button 
+                                onClick={() => setIsStatusModalOpen(false)} 
+                                className="text-slate-400 hover:text-red-500 bg-slate-50 hover:bg-red-50 p-2 rounded-full transition"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* ส่วนเนื้อหา (การ์ดตัวเลือก - ลดช่องว่างและขนาดไอคอน) */}
+                        <div className="p-4 md:p-5 space-y-2.5 bg-slate-50/50">
+                            {statusOptions.map((opt) => {
+                                const isSelected = selectedStatus === opt.id;
+                                const Icon = opt.icon;
+                                return (
+                                    <div 
+                                        key={opt.id}
+                                        onClick={() => setSelectedStatus(opt.id)}
+                                        className={`cursor-pointer p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                                            isSelected 
+                                                ? `bg-white ${opt.activeRing} shadow-sm` 
+                                                : `bg-white border-slate-100 hover:border-slate-300 hover:bg-slate-50`
+                                        }`}
+                                    >
+                                        <div className={`p-2 rounded-lg ${opt.bg} ${opt.color}`}>
+                                            <Icon size={20} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className={`font-bold text-sm ${isSelected ? opt.color : 'text-slate-800'}`}>
+                                                {opt.label}
+                                            </h4>
+                                            {/* ซ่อนคำอธิบายยาวๆ ออกเพื่อให้ป๊อปอัปไม่สูงเกินไป */}
+                                        </div>
+                                        {/* จุดวงกลม (Checkbox) ให้เล็กลง */}
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
+                                            isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300'
+                                        }`}>
+                                            {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* ส่วนท้าย Modal (ลดความสูงปุ่ม) */}
+                        <div className="p-4 md:p-5 border-t border-slate-100 bg-white flex gap-3">
+                            <button 
+                                onClick={() => setIsStatusModalOpen(false)} 
+                                className="flex-1 py-2.5 font-bold text-sm text-slate-600 bg-slate-50 border-2 border-slate-100 rounded-xl hover:bg-slate-100 hover:text-slate-800 transition"
+                            >
+                                ยกเลิก
+                            </button>
+                            <button 
+                                onClick={saveCustomerStatus} 
+                                disabled={isUpdating || selectedStatus === customer.cusStatus}
+                                className="flex-1 py-2.5 font-bold text-sm text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:shadow-none flex justify-center items-center gap-2 cursor-pointer"
+                            >
+                                {isUpdating ? <Loader2 className="animate-spin" size={16} /> : 'บันทึกสถานะ'}
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }

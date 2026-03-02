@@ -53,8 +53,6 @@ export default function LoginPage() {
           router.push('/panel/cars');
         } else if (role === 'ACCOUNTING') {
           router.push('/accounting/rentals');
-        } else if (role === 'FINANCE') {
-          router.push('/finance/shop');
         } else {
           router.push('/');
         }
@@ -175,7 +173,6 @@ export default function LoginPage() {
             <button onClick={() => { document.cookie = "role=CS; path=/;"; router.push("/cs/customers"); }} className="text-[10px] font-bold bg-emerald-100 text-emerald-700 py-2 rounded-lg hover:bg-emerald-200 transition border border-emerald-200">เข้าสู่ระบบ CS</button>
             <button onClick={() => { document.cookie = "role=PANEL; path=/;"; router.push("/panel/cars"); }} className="text-[10px] font-bold bg-indigo-100 text-indigo-700 py-2 rounded-lg hover:bg-indigo-200 transition border border-indigo-200">เข้าสู่ระบบ PANEL</button>
             <button onClick={() => { document.cookie = "role=ACCOUNTING; path=/;"; router.push("/accounting/rentals"); }} className="text-[10px] font-bold bg-amber-100 text-amber-700 py-2 rounded-lg hover:bg-amber-200 transition border border-amber-200">เข้าสู่ระบบ ACCOUNTING</button>
-            <button onClick={() => { document.cookie = "role=FINANCE; path=/;"; router.push("/finance/shop"); }} className="text-[10px] font-bold bg-pink-100 text-pink-700 py-2 rounded-lg hover:bg-pink-200 transition border border-pink-200">เข้าสู่ระบบ FINANCE</button>
           </div>
         </div>
 
