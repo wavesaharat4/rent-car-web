@@ -21,11 +21,14 @@ const dbConfig: mysql.PoolOptions = {
   database:
     process.env.DB_NAME ||
     process.env.MYSQLDATABASE ||
-    (dbUrl?.pathname ? dbUrl.pathname.replace(/^\//, '') : 'phumjairent_db'),
+    (dbUrl?.pathname ? dbUrl.pathname.replace(/^\//, '') : undefined),
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  connectTimeout: 10000,  // 10 วินาที timeout สำหรับ Railway DB ที่ช้า
 };
+
+console.log(`Connecting to database: ${dbConfig.database} at ${dbConfig.host}`);
 
 const globalForMySQL = global as unknown as { mysqlPool: mysql.Pool };
 
