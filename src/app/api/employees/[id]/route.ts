@@ -43,7 +43,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     ] as const;
 
     const sets: string[] = [];
-    const values: unknown[] = [];
+    const values: Array<string | null> = [];
 
     for (const key of allowed) {
       if (Object.prototype.hasOwnProperty.call(body, key)) {
@@ -66,12 +66,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
       );
     }
 
-    const [result] = await db.execute<ResultSetHeader>(
-      `UPDATE employee
-       SET ${sets.join(", ")}, empUpdate = ${THAI_NOW_SQL}
-       WHERE empID = ?`,
-      [...values, empID]
-    );
+    const query = `UPDATE employee SET ${sets.join(", ")}, empUpdate = ${THAI_NOW_SQL} WHERE empID = ?`;
+    const queryValues: Array<string | null | number> = [...values, empID];
+    const [result] = await db.execute<ResultSetHeader>({
+      sql: query,
+      values: queryValues,
+    });
 
     if (!result?.affectedRows) {
       return NextResponse.json(
@@ -101,12 +101,11 @@ export async function DELETE(_req: Request, ctx: Ctx) {
       );
     }
 
-    const [result] = await db.execute<ResultSetHeader>(
-      `UPDATE employee
-       SET empStatus = 'inactive', empUpdate = ${THAI_NOW_SQL}
-       WHERE empID = ?`,
-      [empID]
-    );
+    const query = `UPDATE employee SET empStatus = 'inactive', empUpdate = ${THAI_NOW_SQL} WHERE empID = ?`;
+    const [result] = await db.execute<ResultSetHeader>({
+      sql: query,
+      values: [empID],
+    });
 
     if (!result?.affectedRows) {
       return NextResponse.json(
