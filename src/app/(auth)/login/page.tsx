@@ -38,10 +38,6 @@ export default function LoginPage() {
         const rawRole = (session?.user as any)?.role || 'CUSTOMER'; 
         const role = String(rawRole).toUpperCase();
 
-        // 3. ⚠️ จุดสำคัญมาก: เขียนคุกกี้ทิ้งไว้ให้ Middleware ของบอสอ่านด้วย!
-        // ไม่งั้น Middleware จะไม่รู้ว่าคนนี้ยศอะไร
-        document.cookie = `role=${role}; path=/; max-age=86400`; // เก็บไว้ 1 วัน
-
         // 4. แยกทางตาม Role ที่เป็นตัวใหญ่แล้ว
         if (role === 'ADMIN') {
           router.push('/admin/users'); // หรือหน้า dashboard ของ admin
@@ -163,19 +159,6 @@ export default function LoginPage() {
             </Link>
           </p>
         </div>
-
-        {/* MOCK LOGIN SECTION FOR EMPLOYEE PANEL TESTING */}
-        <div className="mt-6">
-          <p className="text-xs font-bold text-slate-400 text-center mb-4 uppercase tracking-widest">จำลองเข้าก่อนจ้า ค่อยลบนะจะไอเติ้ล</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => { document.cookie = "role=ADMIN; path=/;"; router.push("/admin/users"); }} className="text-[10px] font-bold bg-purple-100 text-purple-700 py-2 rounded-lg hover:bg-purple-200 transition border border-purple-200">เข้าสู่ระบบ ADMIN</button>
-            <button onClick={() => { document.cookie = "role=MANAGER; path=/;"; router.push("/manager/reports"); }} className="text-[10px] font-bold bg-blue-100 text-blue-700 py-2 rounded-lg hover:bg-blue-200 transition border border-blue-200">เข้าสู่ระบบ MANAGER</button>
-            <button onClick={() => { document.cookie = "role=CS; path=/;"; router.push("/cs/customers"); }} className="text-[10px] font-bold bg-emerald-100 text-emerald-700 py-2 rounded-lg hover:bg-emerald-200 transition border border-emerald-200">เข้าสู่ระบบ CS</button>
-            <button onClick={() => { document.cookie = "role=PANEL; path=/;"; router.push("/panel/cars"); }} className="text-[10px] font-bold bg-indigo-100 text-indigo-700 py-2 rounded-lg hover:bg-indigo-200 transition border border-indigo-200">เข้าสู่ระบบ PANEL</button>
-            <button onClick={() => { document.cookie = "role=ACCOUNTING; path=/;"; router.push("/accounting/rentals"); }} className="text-[10px] font-bold bg-amber-100 text-amber-700 py-2 rounded-lg hover:bg-amber-200 transition border border-amber-200">เข้าสู่ระบบ ACCOUNTING</button>
-          </div>
-        </div>
-
       </div>
     </div>
   );
