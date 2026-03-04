@@ -1,6 +1,6 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { db } from "@/lib/db"; 
+import { db } from "@/lib/db";
 import { RowDataPacket } from "mysql2";
 
 export const authOptions: NextAuthOptions = {
@@ -25,14 +25,18 @@ export const authOptions: NextAuthOptions = {
 
           if (customerRows.length > 0) {
             const user = customerRows[0];
-            
+
+            if (user.cusStatus !== 'active') {
+              // ถ้าโดนแบน 
+              throw new Error("บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ");
+            }
             // ตรวจสอบรหัสผ่าน
             if (credentials.password === user.cusPass) {
               return {
                 id: user.cusID.toString(),
                 name: `${user.cusFN} ${user.cusLN}`,
                 email: user.cusMail,
-                role: "CUSTOMER", 
+                role: "CUSTOMER",
               };
             } else {
               throw new Error("รหัสผ่านไม่ถูกต้อง");
@@ -54,7 +58,7 @@ export const authOptions: NextAuthOptions = {
                 id: emp.empID.toString(),
                 name: `${emp.empFN} ${emp.empLN}`,
                 email: emp.empMail,
-                role: emp.empRole.toUpperCase(), 
+                role: emp.empRole.toUpperCase(),
               };
             } else {
               throw new Error("รหัสผ่านไม่ถูกต้อง");
@@ -73,31 +77,34 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     // 1. จัดการ Token
     async jwt({ token, user, trigger, session }) {
-        // ถ้าเป็นการ Login ครั้งแรก
-        if (user) {
-            token.id = user.id;
-            token.name = user.name;
-        }
-        // 📌 ถ้ามีการสั่ง update() จากหน้า Profile ให้เอาชื่อใหม่มาทับ
-        if (trigger === "update" && session?.name) {
-            token.name = session.name;
-        }
-        return token;
+      // ถ้าเป็นการ Login ครั้งแรก
+      if (user) {
+        token.id = user.id;
+        token.name = user.name;
+        token.role = (user as any).role
+      }
+      // 📌 ถ้ามีการสั่ง update() จากหน้า Profile ให้เอาชื่อใหม่มาทับ
+      if (trigger === "update" && session?.name) {
+        token.name = session.name;
+      }
+      return token;
     },
 
     // 2. ส่ง Token ไปให้ Session (เพื่อให้ Navbar เอาไปใช้)
-        async session({ session, token }) {
-            if (token) {
-                // 📌 เพิ่มบรรทัดนี้เพื่อป้องกัน Error 'undefined'
-                session.user = session.user || {}; 
-                
-                // @ts-ignore
-                session.user.id = token.id;
-                // @ts-ignore
-                session.user.name = token.name; 
-            }
-            return session;
-        }
+    async session({ session, token }) {
+      if (token) {
+        // 📌 เพิ่มบรรทัดนี้เพื่อป้องกัน Error 'undefined'
+        session.user = session.user || {};
+
+        // @ts-ignore
+        session.user.id = token.id;
+        // @ts-ignore
+        session.user.name = token.name;
+
+        session.user.role = token.role;
+      }
+      return session;
+    }
   }, // ✅ ปีกกาปิด callbacks ที่ถูกต้อง
   pages: {
     signIn: "/login",
