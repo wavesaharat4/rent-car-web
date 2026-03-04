@@ -1,7 +1,7 @@
 "use client";
 
-import { Wallet, Receipt, CreditCard, PiggyBank, FileText } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Wallet, Receipt, CreditCard, PiggyBank, FileText, BarChart3 } from "lucide-react";
+import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 const data = [
     { name: "จ.", amount: 12000 },
@@ -52,17 +52,17 @@ export default function AccountingPage() {
                 {/* กราฟรายได้ */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                     <h2 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
-                        <BarChart size={20} className="text-blue-600" /> รายได้รายสัปดาห์
+                        <BarChart3 size={20} className="text-blue-600" /> รายได้รายสัปดาห์
                     </h2>
                     <div className="h-[250px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={data}>
+                            <RechartsBarChart data={data}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b', fontWeight: 600 }} dy={10} />
                                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dx={-10} tickFormatter={(val) => `฿${val / 1000}k`} />
                                 <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                                 <Bar dataKey="amount" name="รายได้สะสม" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={50} />
-                            </BarChart>
+                            </RechartsBarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
