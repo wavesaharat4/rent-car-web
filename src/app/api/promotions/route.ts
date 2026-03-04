@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { RowDataPacket } from "mysql2";
+// 🌟 บังคับ Next.js ดึงใหม่ทุกครั้ง
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

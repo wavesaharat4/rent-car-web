@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+
 import Swal from "sweetalert2";
 
 // นำเข้า Component
@@ -37,6 +38,9 @@ export interface PromoDB {
   proValue: number;
   proMin: number;
   proMax: number;
+  proStart: string;   // 🌟 เพิ่มเข้ามา
+  proEnd: string;     // 🌟 เพิ่มเข้ามา
+  proStatus: string;  // 🌟 เพิ่มเข้ามา (ตัวที่ทำให้เกิด Error)
 }
 
 function CheckoutContent() {
@@ -94,19 +98,41 @@ function CheckoutContent() {
       }
       try {
         setLoading(true);
+        // 🌟 1. เติม ?t=... ต่อท้าย URL เพื่อหลอกเบราว์เซอร์ว่าเป็นลิงก์ใหม่เสมอ (ทะลวง Cache 100%)
+        const timestamp = new Date().getTime(); 
+        
         const [carRes, addonRes, promoRes] = await Promise.all([
-          fetch(`/api/cars/${carIdParam}`),
-          fetch("/api/addons"),
-          fetch("/api/promotions"),
+          fetch(`/api/cars/${carIdParam}`, { cache: "no-store" }),
+          fetch("/api/addons", { cache: "no-store" }),
+          fetch(`/api/promotions?t=${timestamp}`, { cache: "no-store" }), // 👈 ทะลวง Cache ตรงนี้
         ]);
+        
         if (carRes.ok) {
           const carJson = await carRes.json();
           if (carJson.ok) setCar(carJson.data);
         }
-        if (addonRes.ok) setAddonsData(JSON.parse(await addonRes.text()));
-        if (promoRes.ok) setPromosData(JSON.parse(await promoRes.text()));
+        
+        if (addonRes.ok) {
+          setAddonsData(JSON.parse(await addonRes.text()));
+        }
+        
+        if (promoRes.ok) {
+          const promoJson = await promoRes.json();
+          let allPromos = [];
+          if (Array.isArray(promoJson)) {
+            allPromos = promoJson;
+          } else if (promoJson.ok && promoJson.data) {
+            allPromos = promoJson.data;
+          }
+
+          // 🌟 [แก้ไขตรงนี้] กรองเอาเฉพาะอันที่ active ก่อนเซ็ตลง State
+          const activePromos = allPromos.filter(
+            (p: PromoDB) => p.proStatus?.toLowerCase() === 'active'
+          );
+          setPromosData(activePromos);
+        }
       } catch (error) {
-        console.error(error);
+        console.error("Fetch Data Error:", error);
       } finally {
         setLoading(false);
       }
@@ -875,7 +901,15 @@ function CheckoutContent() {
             <div className="p-4 sm:p-6 space-y-4 max-h-[60vh] overflow-y-auto bg-slate-50/50 custom-scrollbar">
               {promosData.map((promo) => {
                 const isSelected = selectedPromo?.proID === promo.proID;
-                const canUse = carPriceTotal + addonsTotal >= promo.proMin;
+                
+                // 🌟 ปรับปรุงการเช็คเงื่อนไข canUse:
+                // เนื่องจากเรากรอง 'active' มาตั้งแต่ตอน Fetch แล้ว ตรงนี้ไม่ต้องเช็คซ้ำ
+                // เช็คแค่วันหมดอายุ และยอดขั้นต่ำ
+                const isNotExpired = new Date(promo.proEnd) >= new Date(); 
+                const meetsMinSpend = carPriceTotal + addonsTotal >= promo.proMin;
+                
+                // ถ้ายังไม่หมดอายุ และยอดถึงขั้นต่ำ = ใช้ได้
+                const canUse = meetsMinSpend && isNotExpired; 
 
                 return (
                   <div
