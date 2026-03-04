@@ -107,7 +107,7 @@ export async function GET(req: Request) {
     const q = normalizeText(searchParams.get("q"))?.toLowerCase() || "";
 
     const filters: string[] = ["LOWER(COALESCE(tranType, '')) = 'expense'"];
-    const params: unknown[] = [];
+    const params: (string | number | null)[] = [];
 
     if (q) {
       filters.push(
@@ -190,7 +190,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const values: unknown[] = [empID, tranCategory, tranAmount, tranDetail];
+    const values: (string | number | null)[] = [empID, tranCategory, tranAmount, tranDetail];
     const dateSql = tranDate ? "?" : THAI_NOW_SQL;
     if (tranDate) {
       values.splice(3, 0, tranDate);
