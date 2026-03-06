@@ -60,7 +60,7 @@ const getMenuItems = (role: string) => {
     // 5. ฝ่ายบัญชี (Accounting)
     if (role === "ACCOUNTING") {
         menus.push(
-            { name: "รายการเช่ารถ", path: "/accounting/rentals", icon: <Car size={20} /> },
+            { name: "รายการยอดจอง", path: "/accounting/booking", icon: <Car size={20} /> },
             { name: "รายงานรายได้", path: "/accounting/income", icon: <Wallet size={20} /> },
             { name: "รายงานรายจ่าย", path: "/accounting/expenses", icon: <Receipt size={20} /> },
             { name: "รายการชำระเงิน", path: "/accounting/payments", icon: <CreditCard size={20} /> }

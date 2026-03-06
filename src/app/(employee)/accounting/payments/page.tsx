@@ -182,7 +182,7 @@ export default function AccountingPaymentsPage() {
                         </div>
                         ประวัติการชำระเงิน
                     </h1>
-                    <p className="text-slate-500 text-sm mt-2 font-medium">ดูประวัติลูกค้าโอนเงิน หรือชำระผ่านเงินสด (สำหรับฝ่ายบัญชีดูอย่างเดียว)</p>
+                    <p className="text-slate-500 text-sm mt-2 font-medium">ดูประวัติลูกค้าโอนเงิน หรือชำระผ่านเงินสด</p>
                 </div>
             </div>
 

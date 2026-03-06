@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 // 1. เพิ่ม getSession ตรงนี้!
-import { signIn, getSession } from "next-auth/react"; 
+import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -24,7 +24,7 @@ export default function LoginPage() {
       const res = await signIn('credentials', {
         email,
         password,
-        redirect: false, 
+        redirect: false,
       });
 
       if (res?.error) {
@@ -33,9 +33,9 @@ export default function LoginPage() {
       } else {
         // 1. ขอดูบัตร (Session) จาก NextAuth
         const session = await getSession();
-        
+
         // 2. ดึง Role มา แปลงเป็น string ก่อน แล้วจับทำเป็นตัวใหญ่ทั้งหมด! (ป้องกันบัค admin vs ADMIN)
-        const rawRole = (session?.user as any)?.role || 'CUSTOMER'; 
+        const rawRole = (session?.user as any)?.role || 'CUSTOMER';
         const role = String(rawRole).toUpperCase();
 
         // 4. แยกทางตาม Role ที่เป็นตัวใหญ่แล้ว
@@ -48,12 +48,12 @@ export default function LoginPage() {
         } else if (role === 'PANEL') {
           router.push('/panel/cars');
         } else if (role === 'ACCOUNTING') {
-          router.push('/accounting/rentals');
+          router.push('/accounting/booking');
         } else {
           router.push('/');
         }
-        
-        router.refresh(); 
+
+        router.refresh();
       }
     } catch (err) {
       setError('เกิดข้อผิดพลาดบางอย่าง กรุณาลองใหม่อีกครั้ง');
