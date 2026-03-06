@@ -19,7 +19,8 @@ import {
     Receipt,
     CreditCard,
     Building2,
-    ShoppingCart
+    ShoppingCart,
+    TicketPercent,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -53,7 +54,9 @@ const getMenuItems = (role: string) => {
     // 4. Panel Admin
     if (role === "PANEL") {
         menus.push(
-            { name: "จัดการรายละเอียดรถ", path: "/panel/cars", icon: <Wrench size={20} /> }
+            { name: "จัดการรายละเอียดรถ", path: "/panel/cars", icon: <Wrench size={20} /> },
+            { name: "จัดการอุปกรณ์เสริม", path: "/panel/addons", icon: <ShoppingCart size={20} /> },
+            { name: "จัดการโปรโมชัน", path: "/panel/promotions", icon: <TicketPercent size={20} /> }
         );
     }
 
