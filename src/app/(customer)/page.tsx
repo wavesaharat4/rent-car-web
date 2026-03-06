@@ -138,10 +138,10 @@ export default function Home() {
           <div
             className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
             style={{
-              backgroundImage: "url('https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?auto=format&fit=crop&w=1920&q=80')",
+              backgroundImage: "url('https://bzkhhkqkausplbsjsyay.supabase.co/storage/v1/object/public/phumjai%20rent/webpage/26_FRD_MME_FRDNPERA0001_gt_velblue.avif')",
             }}
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-blue-600/60 to-blue-450/90"></div>
+            <div className="absolute inset-0 bg-gradient-to-b from-blue-700/60 to-gray-900"></div>
           </div>
 
           <div className="relative z-10 text-center px-4 mb-10">
@@ -215,7 +215,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
             <div className="rounded-2xl overflow-hidden shadow-2xl relative group h-[450px]">
               <div className="absolute inset-0 bg-blue-600/5 group-hover:bg-transparent transition duration-500 z-10"></div>
-              <img src="https://images.unsplash.com/photo-1617531653332-bd46c24f2068?auto=format&fit=crop&w=800&q=80" alt="Luxury Car Concept" className="w-full h-full object-cover transform group-hover:scale-105 transition duration-700" />
+              <img src="https://www.astonmartin.com/-/media/top-gear-award-2026/tga-desk-still-new.jpg?mw=1920&rev=-1&hash=7ABA0E79D5DB0A500009322935948B7B" alt="Luxury Car Concept" className="w-full h-full object-cover transform group-hover:scale-105 transition duration-700" />
             </div>
             <div>
               <h2 className="text-3xl md:text-4xl font-extrabold text-blue-950 mb-6 leading-tight">

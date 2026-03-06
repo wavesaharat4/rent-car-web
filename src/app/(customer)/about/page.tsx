@@ -8,17 +8,17 @@ export default function AboutPage() {
       {/* ไม่มีการใช้ Background Glow ฟุ้งๆ แล้ว เพื่อความคลีน */}
 
       {/* 1. Hero Section (ภาพพื้นหลัง + Overlay สีเข้มแบบทึบแสง ไม่ไล่เฉด) */}
-      <section className="relative w-full h-[60vh] min-h-[450px] flex flex-col items-center justify-center mt-16 md:mt-20">
+      <section className="relative w-full h-[60vh] min-h-[850px] flex flex-col items-center justify-center mt-16 md:mt-20">
         <div 
           className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: "url('https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=1920&q=80')" }}
+          style={{ backgroundImage: "url('https://blog.static.qic.online/common/New_vs_Used_Car_Title_image_cover_min_51b6beb9fd/New_vs_Used_Car_Title_image_cover_min_51b6beb9fd.jpg')" }}
         >
           {/* ใช้สีน้ำเงินเข้มทึบแสงคลุมภาพ (Solid Overlay) */}
-          <div className="absolute inset-0 bg-blue-950/85"></div>
+          <div className="absolute inset-0 bg-blue-950/65"></div>
         </div>
 
         <div className="relative z-10 text-center px-4">
-          <h1 className="text-4xl md:text-5xl lg:text-7xl font-extrabold text-white mb-6 tracking-tight drop-shadow-md">
+          <h1 className="text-4 xl md:text-5xl lg:text-7xl font-extrabold text-white mb-6 tracking-tight drop-shadow-md">
             รู้จักกับ <span className="text-white">PhumJai</span> <span className="text-amber-500">Rent</span>
           </h1>
           <p className="text-lg md:text-xl text-blue-100 max-w-3xl mx-auto font-light leading-relaxed">
@@ -35,14 +35,14 @@ export default function AboutPage() {
           <div className="relative h-[500px] w-full hidden md:block">
             <div className="absolute top-0 right-0 w-4/5 h-[400px] rounded-3xl overflow-hidden shadow-2xl z-10 border-4 border-white">
               <img 
-                src="https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=1000&q=80" 
+                src="https://img.freepik.com/premium-photo/car-driving-highway-sunset_972071-210.jpg" 
                 alt="Luxury Car Trip" 
                 className="w-full h-full object-cover hover:scale-105 transition duration-700"
               />
             </div>
             <div className="absolute bottom-0 left-0 w-3/5 h-[300px] rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] border-8 border-slate-50 z-20">
               <img 
-                src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80" 
+                src="https://mindfulmethodsforlife.com/wp-content/uploads/2024/06/How-Helping-Others-Helps-Us.jpg" 
                 alt="Happy Customers" 
                 className="w-full h-full object-cover hover:scale-105 transition duration-700"
               />
