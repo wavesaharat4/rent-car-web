@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react"; // 🌟 1. นำเข้า useSession และ signOut
 import {
     Users,
-    FileText,
     BarChart3,
     Car,
     CalendarDays,
@@ -15,9 +14,7 @@ import {
     Menu,
     X,
     UserCircle,
-    Settings,
     Shield,
-    Send,
     Wrench,
     Receipt,
     CreditCard,
@@ -33,18 +30,14 @@ const getMenuItems = (role: string) => {
     // 1. ผู้ดูแลระบบ (System Admin)
     if (role === "ADMIN") {
         menus.push(
-            { name: "จัดการสิทธิ์ผู้ใช้", path: "/admin/users", icon: <Shield size={20} /> },
-            { name: "ดู Log การใช้งาน", path: "/admin/logs", icon: <FileText size={20} /> },
-            { name: "ดูรายงานระบบ", path: "/admin/reports", icon: <BarChart3 size={20} /> },
-            { name: "ตั้งค่าระบบ", path: "/admin/settings", icon: <Settings size={20} /> }
+            { name: "จัดการสิทธิ์ผู้ใช้", path: "/admin/users", icon: <Shield size={20} /> }
         );
     }
 
     // 2. ผู้จัดการ (Manager)
     if (role === "MANAGER") {
         menus.push(
-            { name: "ประมวลผลรายงานรวม", path: "/manager/reports", icon: <BarChart3 size={20} /> },
-            { name: "ส่งข้อมูลขอรายงาน", path: "/manager/requests", icon: <Send size={20} /> }
+            { name: "ประมวลผลรายงานรวม", path: "/manager/reports", icon: <BarChart3 size={20} /> }
         );
     }
 
