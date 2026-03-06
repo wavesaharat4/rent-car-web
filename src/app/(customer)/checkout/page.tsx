@@ -29,6 +29,7 @@ export interface AddonDB {
   addonDetail: string;
   addonPrice: number;
   addonQuantity: number;
+  addonMaxLimit: number;
 }
 export interface PromoDB {
   proID: number;
@@ -113,7 +114,12 @@ function CheckoutContent() {
         }
         
         if (addonRes.ok) {
-          setAddonsData(JSON.parse(await addonRes.text()));
+          const rawAddons = JSON.parse(await addonRes.text());
+          // 🌟 [แก้ไขตรงนี้] กรองเอาเฉพาะแอดออนที่จำนวนยังเหลือมากกว่า 0
+          const availableAddons = Array.isArray(rawAddons) 
+            ? rawAddons.filter((a: AddonDB) => a.addonQuantity > 0)
+            : [];
+          setAddonsData(availableAddons);
         }
         
         if (promoRes.ok) {

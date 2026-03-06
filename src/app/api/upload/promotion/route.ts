@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server";
 
-// ===================================================================
-// 📌 POST /api/upload/promotion — อัพโหลดรูปโปรโมชั่นไปเก็บที่ Supabase Storage
-// ===================================================================
-
 export async function POST(req: Request) {
     try {
         const supabaseUrl = process.env.SUPABASE_URL;
@@ -27,17 +23,20 @@ export async function POST(req: Request) {
             );
         }
 
-        // 🌟 เปลี่ยนชื่อโฟลเดอร์และชื่อไฟล์ (promo_1709012345678.jpg)
         const ext = file.name.split(".").pop() || "jpg";
-        const fileName = `promotions/promo_${Date.now()}.${ext}`; 
-        
-        const encodedBucket = encodeURIComponent(bucket);
-        const encodedPath = encodeURIComponent(fileName);
+        const fileName = `promo_${Date.now()}.${ext}`; 
 
-        const uploadUrl = `${supabaseUrl}/storage/v1/object/${encodedBucket}/${encodedPath}`;
+        const encodedBucket = encodeURIComponent(bucket);
+        
+        // 🌟 แก้ไขการสร้าง Path เพื่อให้มันเข้าไปอยู่ในโฟลเดอร์ promotions จริงๆ 
+        // (ไม่ใช้ encodeURIComponent กับเครื่องหมาย / )
+        const path = `promotions/${encodeURIComponent(fileName)}`;
+
+        const uploadUrl = `${supabaseUrl}/storage/v1/object/${encodedBucket}/${path}`;
+        
+        // 🌟 ดึงข้อมูลไฟล์
         const arrayBuffer = await file.arrayBuffer();
 
-        // ยิง API อัปโหลดรูปไปที่ Supabase
         const uploadRes = await fetch(uploadUrl, {
             method: "POST",
             headers: {
@@ -46,24 +45,27 @@ export async function POST(req: Request) {
                 "x-upsert": "true",
                 "Content-Type": file.type || "application/octet-stream",
             },
-            body: Buffer.from(arrayBuffer),
+            // 🌟 ส่ง arrayBuffer ตรงๆ เลย (ไม่ใช้ Buffer.from ป้องกัน Server Error)
+            body: arrayBuffer, 
         });
 
         if (!uploadRes.ok) {
             const msg = await uploadRes.text();
             return NextResponse.json(
-                { ok: false, message: `อัปโหลดรูปโปรโมชั่นไม่สำเร็จ: ${msg}` },
+                { ok: false, message: `อัปโหลดสลิปไม่สำเร็จ: ${msg}` },
                 { status: 500 }
             );
         }
 
-        // สร้าง Public URL สำหรับเข้าถึงรูปภาพ
-        const publicUrl = `${supabaseUrl}/storage/v1/object/public/${encodedBucket}/${encodedPath}`;
+        // สร้าง Public URL
+        const publicUrl = `${supabaseUrl}/storage/v1/object/public/${encodedBucket}/${path}`;
         return NextResponse.json({ ok: true, url: publicUrl });
+        
     } catch (err: any) {
+        console.error("API Upload Error:", err);
         return NextResponse.json(
             { ok: false, message: err?.message ?? "Upload failed" },
             { status: 500 }
         );
     }
-}
+}   

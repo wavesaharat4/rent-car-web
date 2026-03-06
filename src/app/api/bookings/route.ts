@@ -6,19 +6,33 @@ import { db } from "@/lib/db";
 // ===================================================================
 export async function GET(req: Request) {
   try {
-    // 1. Lazy Check: ยกเลิก booking ที่เป็น Pending เกิน 1 ชั่วโมง
-    await db.query(`
-      UPDATE booking 
-      SET bookStatus = 'Cancelled' 
-      WHERE bookStatus = 'Pending' 
-        AND bookCreate < DATE_SUB(NOW(), INTERVAL 1 HOUR)
+    // 1. Lazy Check & Stock Recovery: 
+    // ค้นหาการจองที่ Pending เกิน 1 ชม. เพื่อเอามาคืนสต็อกแอดออนก่อนจะยกเลิก
+    const [expiredBookings]: any = await db.query(`
+      SELECT b.bookID 
+      FROM booking b 
+      WHERE b.bookStatus = 'Pending' 
+      AND b.bookCreate < DATE_SUB(NOW(), INTERVAL 1 HOUR)
     `);
 
-    // 2. ดึงข้อมูลทั้งหมด (หรือตาม query param)
+    if (expiredBookings.length > 0) {
+      for (const b of expiredBookings) {
+        // คืนสต็อกแอดออนตามจำนวนที่เคยจองไว้
+        await db.query(`
+          UPDATE addon a
+          JOIN bookingaddon ba ON a.addonID = ba.addonID
+          SET a.addonQuantity = a.addonQuantity + ba.bookingaddQuan
+          WHERE ba.bookID = ?
+        `, [b.bookID]);
+        
+        // เปลี่ยนสถานะเป็น Cancelled
+        await db.query(`UPDATE booking SET bookStatus = 'Cancelled' WHERE bookID = ?`, [b.bookID]);
+      }
+    }
+
     const { searchParams } = new URL(req.url);
     const cusID = searchParams.get("cusID");
 
-    // 🌟 รวม JOIN ทั้งฝั่งลูกค้า (car, payment) และฝั่งพนักงาน CS (customer)
     let query = `
       SELECT 
           b.*, 
@@ -32,16 +46,13 @@ export async function GET(req: Request) {
     `;
     
     const params: any[] = [];
-
     if (cusID) {
       query += " WHERE b.cusID = ?";
       params.push(cusID);
     }
-    
     query += " ORDER BY b.bookID DESC";
 
     const [rows]: any = await db.query(query, params);
-    
     return NextResponse.json({ ok: true, data: rows });
 
   } catch (error: any) {
@@ -51,10 +62,10 @@ export async function GET(req: Request) {
 }
 
 // ===================================================================
-// 📌 POST /api/bookings — สร้างการจองใหม่ (สถานะ Pending)
-// ⚠️ ยังไม่ล็อกรถ! รอจ่ายเงินผ่านแล้วค่อยล็อก (ใน verify-slip / confirm-cash)
+// 📌 POST /api/bookings — สร้างการจองใหม่ & หักสต็อกแอดออน
 // ===================================================================
 export async function POST(req: Request) {
+  let connection;
   try {
     const body = await req.json();
     const {
@@ -62,13 +73,11 @@ export async function POST(req: Request) {
       bookStart, bookEnd, bookSProvice, bookEProvince, addons
     } = body;
 
-    // เริ่ม Transaction
-    const connection = await db.getConnection();
+    connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
-      // 1. INSERT booking → สถานะ Pending เสมอ (ยังไม่จ่ายเงิน)
-      // ถ้าไม่มี proID จะไม่ใส่ในคำสั่ง SQL (กัน NOT NULL error)
+      // 1. INSERT booking
       const hasPromo = proID !== null && proID !== undefined;
       const insertSQL = hasPromo
         ? `INSERT INTO booking (cusID, carID, proID, bookStatus, bookCarPrice, bookTotalPrice, bookStart, bookEnd, bookSProvice, bookEProvince) 
@@ -81,13 +90,28 @@ export async function POST(req: Request) {
         : [cusID, carID, bookCarPrice, bookTotalPrice, bookStart, bookEnd, bookSProvice, bookEProvince];
 
       const [bookResult]: any = await connection.query(insertSQL, insertParams);
-      
-      // 🌟 ประกาศตัวแปร newBookID เพื่อนำไปใช้ต่อใน addon
       const newBookID = bookResult.insertId;
 
-      // 2. INSERT bookingaddon (ถ้ามี)
+      // 2. จัดการแอดออนและหักสต็อก
       if (addons && addons.length > 0) {
         for (const item of addons) {
+          // 🌟 2.1 ตรวจสอบสต็อกก่อนหัก (ป้องกันกรณีโดนแย่งกดบิลสุดท้ายพร้อมกัน)
+          const [addonRow]: any = await connection.query(
+            "SELECT addonQuantity, addonName FROM addon WHERE addonID = ? FOR UPDATE", 
+            [item.addonID]
+          );
+
+          if (!addonRow[0] || addonRow[0].addonQuantity < item.quantity) {
+            throw new Error(`ขออภัย อุปกรณ์ ${addonRow[0]?.addonName || ''} ไม่เพียงพอในขณะนี้`);
+          }
+
+          // 🌟 2.2 หักสต็อกแอดออน
+          await connection.query(
+            "UPDATE addon SET addonQuantity = addonQuantity - ? WHERE addonID = ?",
+            [item.quantity, item.addonID]
+          );
+
+          // 2.3 บันทึกรายการลง bookingaddon
           await connection.query(
             `INSERT INTO bookingaddon (bookID, addonID, bookingaddQuan, bookaddPrice) 
              VALUES (?, ?, ?, ?)`,
@@ -96,48 +120,45 @@ export async function POST(req: Request) {
         }
       }
 
-      // ⚠️ ไม่ UPDATE car เป็น Unavailable แล้ว! รอจ่ายเงินก่อน
-
       await connection.commit();
       return NextResponse.json({ ok: true, bookID: newBookID });
 
     } catch (err: any) {
       if (connection) await connection.rollback();
       console.error("Internal Transaction Error:", err);
-      return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+      return NextResponse.json({ ok: false, error: err.message }, { status: 400 }); // ส่ง Error 400 ถ้าสต็อกไม่พอ
     } finally {
       if (connection) connection.release();
     }
   } catch (error: any) {
     console.error("API Route Error:", error);
-    return NextResponse.json({ ok: false, error: "ไม่สามารถเชื่อมต่อฐานข้อมูลได้" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "ไม่สามารถดำเนินการจองได้ในขณะนี้" }, { status: 500 });
   }
 }
-
 // ===================================================================
 // 📌 PUT /api/bookings — อัปเดตสถานะการจอง (สำหรับพนักงาน CS)
 // ===================================================================
 export async function PUT(req: Request) {
-    try {
-        const body = await req.json();
-        const { bookID, bookStatus } = body;
+  try {
+    const body = await req.json();
+    const { bookID, bookStatus } = body;
 
-        if (!bookID || !bookStatus) {
-            return NextResponse.json({ ok: false, message: "ข้อมูลไม่ครบถ้วน" }, { status: 400 });
-        }
+    if (!bookID || !bookStatus) {
+      return NextResponse.json({ ok: false, message: "ข้อมูลไม่ครบถ้วน" }, { status: 400 });
+    }
 
-        const updateQuery = `
+    const updateQuery = `
             UPDATE booking 
             SET bookStatus = ? 
             WHERE bookID = ?
         `;
-        
-        await db.query(updateQuery, [bookStatus, bookID]);
 
-        return NextResponse.json({ ok: true, message: "อัปเดตสถานะเรียบร้อยแล้ว" });
+    await db.query(updateQuery, [bookStatus, bookID]);
 
-    } catch (error) {
-        console.error("Update Booking Status Error:", error);
-        return NextResponse.json({ ok: false, message: "เกิดข้อผิดพลาดในการอัปเดตสถานะ" }, { status: 500 });
-    }
+    return NextResponse.json({ ok: true, message: "อัปเดตสถานะเรียบร้อยแล้ว" });
+
+  } catch (error) {
+    console.error("Update Booking Status Error:", error);
+    return NextResponse.json({ ok: false, message: "เกิดข้อผิดพลาดในการอัปเดตสถานะ" }, { status: 500 });
+  }
 }
