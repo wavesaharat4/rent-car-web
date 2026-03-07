@@ -3,6 +3,10 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "@/lib/db";
 import { RowDataPacket } from "mysql2";
 
+// 🌟 1. เช็ค Environment ว่าเป็น Production หรือไม่ เพื่อตั้งชื่อ Cookie ให้ถูกต้องตามมาตรฐาน NextAuth
+const useSecureCookies = process.env.NODE_ENV === "production";
+const cookiePrefix = useSecureCookies ? "__Secure-" : "";
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -111,6 +115,20 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
+  },
+  // 🌟 2. เพิ่มการจัดการ Cookies ตรงนี้
+  cookies: {
+    sessionToken: {
+      name: `${cookiePrefix}next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+        // ❌ สำคัญมาก: ไม่ระบุค่า maxAge ในนี้ เพื่อบังคับให้เป็น Session Cookie
+        // เบราว์เซอร์จะลบคุกกี้ตัวนี้ทิ้งอัตโนมัติเมื่อผู้ใช้ปิดโปรแกรมเบราว์เซอร์
+      },
+    },
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

@@ -113,58 +113,68 @@ function CarsPageContent() {
   }, [location, searchQuery, selectedBrand, selectedType, sortBy]);
 
   // ฟังก์ชันจัดการกดปุ่ม "จองเลย"
-  const handleBooking = async (carID: number) => {
+const handleBooking = async (carID: number) => {
     
-    // 1. ตรวจสอบสถานะการล็อกอินด้วย session
+    // 1. ตรวจสอบสถานะการล็อกอิน (คงเดิม)
     const session = await getSession(); 
 
     if (!session) {
-      // โชว์แจ้งเตือนด้วย SweetAlert2 แบบเดียวกับใน Navbar
       Swal.fire({
         title: "กรุณาเข้าสู่ระบบ",
         text: "คุณต้องเข้าสู่ระบบก่อนเพื่อทำการจองรถครับ",
         icon: "warning",
-        confirmButtonColor: "#2563eb", // สีน้ำเงินเข้ากับธีม
+        confirmButtonColor: "#2563eb",
         confirmButtonText: "ไปหน้าเข้าสู่ระบบ",
         showCancelButton: true,
         cancelButtonText: "ยกเลิก",
-        customClass: { popup: 'rounded-2xl' } // ทำให้ขอบมนสวยงาม
+        customClass: { popup: 'rounded-2xl' }
       }).then((result) => {
         if (result.isConfirmed) {
-          // ถ้ากด "ไปหน้าเข้าสู่ระบบ" ค่อยให้ Router ทำงาน
           router.push('/login'); 
         }
       });
-      return; // หยุดการทำงานตรงนี้ ไม่ให้รันโค้ดเช็ควันที่ต่อ
+      return;
     }
 
-    // 2. ตรวจสอบการกรอกวันที่ (ดึงมาจากโค้ดเดิมของคุณ)
+    // 2. ตรวจสอบการกรอกวันที่
     if (!startDate || !endDate) {
       setBookingError("กรุณาระบุวันที่ให้ครบถ้วนก่อนทำการจองครับ");
       return;
     }
 
+    // สร้าง Object Date และเซ็ตเวลาเป็น 00:00:00 เพื่อเปรียบเทียบเฉพาะวันที่
     const startObj = new Date(startDate);
-    const endObj = new Date(endDate);
-    const now = new Date();
+    startObj.setHours(0, 0, 0, 0);
 
+    const endObj = new Date(endDate);
+    endObj.setHours(0, 0, 0, 0);
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    // เช็ค: ห้ามเลือกวันที่ผ่านมาแล้ว (ถ้าน้อยกว่าวันนี้)
     if (startObj < now) {
       setBookingError("ไม่สามารถจองรถย้อนหลังได้ครับ");
       return;
     }
 
+    // เช็ค: วันคืนรถต้องไม่ใช่วันเดียวกับวันรับรถ หรือก่อนวันรับรถ
+    // (ถ้าต้องการให้เช่าวันเดียวได้ ให้เปลี่ยนเป็น startObj > endObj)
     if (startObj >= endObj) {
-      setBookingError("ระบุวันที่ไม่ถูกต้อง! วันและเวลาคืนรถต้องมากกว่าวันรับรถครับ");
+      setBookingError("ระบุวันที่ไม่ถูกต้อง! วันคืนรถต้องเป็นวันถัดไปจากวันรับรถครับ");
       return;
     }
 
+    // คำนวณส่วนต่างวัน (Optional: ถ้าต้องการเช็คจำนวนวันขั้นต่ำ)
     const diffTime = endObj.getTime() - startObj.getTime();
-    if (diffTime < 24 * 60 * 60 * 1000) {
-      setBookingError("ต้องเช่ารถขั้นต่ำ 1 วัน (24 ชั่วโมง) ครับ");
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
+    
+    if (diffDays < 1) {
+      setBookingError("ต้องเช่ารถขั้นต่ำ 1 วันครับ");
       return;
     }
 
-    // 3. ถ้าล็อกอินแล้วและข้อมูลครบ ให้ไปหน้า Checkout พร้อมส่งพารามิเตอร์
+    // 3. ผ่านการตรวจสอบ ส่งไปหน้า Checkout
     router.push(`/checkout?carId=${carID}&pickup=${location}&dropoff=${location}&start=${startDate}&end=${endDate}`);
   };
 
@@ -233,14 +243,14 @@ function CarsPageContent() {
               <label className="block text-xs font-bold text-slate-500 mb-1">วัน-เวลารับรถ <span className="text-red-500">*</span></label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-                <input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium" />
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium" />
               </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1">วัน-เวลาคืนรถ <span className="text-red-500">*</span></label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-                <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium" />
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium" />
               </div>
             </div>
           </div>

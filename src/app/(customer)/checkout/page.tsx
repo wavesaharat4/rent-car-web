@@ -213,7 +213,7 @@ function CheckoutContent() {
     return selectedPromo.proValue;
   }, [selectedPromo, subTotalBeforeDiscount]);
 
-  const subTotal = subTotalBeforeDiscount - discountAmount;
+  const subTotal = Math.max(0, subTotalBeforeDiscount - discountAmount);
   const vatAmount = Math.round(subTotal * 0.07);
   const grandTotal = subTotal + vatAmount;
 
