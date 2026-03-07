@@ -16,25 +16,25 @@ export default function BookingClient({ car }: { car: any }) {
 
   const [bookingError, setBookingError] = useState("");
 
-  const handleBooking = () => {
-    // 1. เช็คว่าล็อกอินหรือยัง
+ const handleBooking = () => {
+    // 1. เช็คว่าล็อกอินหรือยัง (คงเดิม)
     if (status !== "authenticated") {
       Swal.fire({
         title: "กรุณาเข้าสู่ระบบ",
         text: "กรุณาเข้าสู่ระบบ (Login) ก่อนทำการจองรถครับ",
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#2563eb", // สีปุ่มยืนยัน
-        cancelButtonColor: "#6b7280", // สีปุ่มยกเลิก
+        confirmButtonColor: "#2563eb",
+        cancelButtonColor: "#6b7280",
         confirmButtonText: "ไปหน้าเข้าสู่ระบบ",
         cancelButtonText: "ยกเลิก",
-        customClass: { popup: 'rounded-2xl' } // ขอบมนสวยงาม
+        customClass: { popup: 'rounded-2xl' }
       }).then((result) => {
         if (result.isConfirmed) {
-          router.push('/login'); // พาไปหน้า Login เมื่อกดตกลง
+          router.push('/login');
         }
       });
-      return; // 🛑 หยุดการทำงานตรงนี้ ไม่ให้โค้ดส่วนอื่นด้านล่างรันต่อ
+      return;
     }
 
     // 2. เช็คว่าเลือกวันที่ครบไหม
@@ -43,28 +43,29 @@ export default function BookingClient({ car }: { car: any }) {
       return;
     }
 
-    // 3. เช็คว่าวันคืนรถ ต้องไม่น้อยกว่าวันรับรถ และต้องเช่าอย่างน้อย 1 วัน
+    // 🌟 3. ตรวจสอบเฉพาะ "วันที่" โดยล้างค่าเวลาออก
     const startObj = new Date(startDate);
-    const endObj = new Date(endDate);
-    const now = new Date();
+    startObj.setHours(0, 0, 0, 0); // ล้างเวลาเป็น 00:00:00
 
+    const endObj = new Date(endDate);
+    endObj.setHours(0, 0, 0, 0); // ล้างเวลาเป็น 00:00:00
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // ล้างเวลาเป็น 00:00:00
+
+    // เช็ค: ห้ามเลือกวันที่ผ่านมาแล้ว
     if (startObj < now) {
       setBookingError("ไม่สามารถจองรถย้อนหลังได้ครับ");
       return;
     }
 
+    // เช็ค: วันคืนรถต้องเป็นวันถัดไป (อย่างน้อย 1 วัน)
     if (startObj >= endObj) {
-      setBookingError("ระบุวันที่ไม่ถูกต้อง! วันและเวลาคืนรถต้องมากกว่าวันรับรถครับ");
+      setBookingError("ระบุวันที่ไม่ถูกต้อง! วันคืนรถต้องเป็นวันถัดไปจากวันรับรถครับ");
       return;
     }
 
-    const diffTime = endObj.getTime() - startObj.getTime();
-    if (diffTime < 24 * 60 * 60 * 1000) {
-      setBookingError("ต้องเช่ารถขั้นต่ำ 1 วัน (24 ชั่วโมง) ครับ");
-      return;
-    }
-
-    // ผ่านทุกเงื่อนไข -> ส่งไปหน้า Checkout (แนบสถานที่ของรถคันนี้ไปด้วย)
+    // ผ่านทุกเงื่อนไข -> ส่งไปหน้า Checkout
     const location = car.carProvince;
     router.push(`/checkout?carId=${car.carID}&pickup=${location}&dropoff=${location}&start=${startDate}&end=${endDate}`);
   };
@@ -117,7 +118,7 @@ export default function BookingClient({ car }: { car: any }) {
             <div>
               <label className="block text-xs text-blue-900 font-bold mb-1 uppercase tracking-wider">วัน-เวลารับรถ</label>
               <input
-                type="datetime-local"
+                type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className={`w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium ${bookingError.includes('วันที่') && !startDate ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}
@@ -126,7 +127,7 @@ export default function BookingClient({ car }: { car: any }) {
             <div>
               <label className="block text-xs text-blue-900 font-bold mb-1 uppercase tracking-wider">วัน-เวลาคืนรถ</label>
               <input
-                type="datetime-local"
+                type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 className={`w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium ${bookingError.includes('วันที่') && !endDate ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}

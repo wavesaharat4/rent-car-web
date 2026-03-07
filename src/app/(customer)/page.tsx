@@ -71,38 +71,39 @@ export default function Home() {
     fetchData();
   }, []);
 
-  // 🌟 3. ฟังก์ชันตรวจสอบก่อนค้นหา
+  // 🌟 3. ฟังก์ชันตรวจสอบก่อนค้นหา (ฉบับแก้ไข)
   const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault(); // ป้องกันไม่ให้ฟอร์มรีเฟรชหน้าเว็บ
+    e.preventDefault();
 
-    // เช็คว่าเลือกข้อมูลครบไหม
+    // 1. เช็คว่าเลือกข้อมูลครบไหม
     if (!location || !startDate || !endDate) {
       setSearchError("กรุณาระบุ 'สถานที่รับ-คืนรถ' และ 'วันที่' ให้ครบถ้วนเพื่อค้นหารถครับ");
       return;
     }
 
-    // เช็คว่าวันคืนรถ ต้องไม่น้อยกว่าวันรับรถ และต้องเช่าอย่างน้อย 1 วัน (24 ชั่วโมง)
+    // 🌟 2. สร้าง Object วันที่และล้างค่าเวลาให้เป็น 00:00:00 ทั้งหมด
     const startObj = new Date(startDate);
-    const endObj = new Date(endDate);
-    const now = new Date();
+    startObj.setHours(0, 0, 0, 0);
 
+    const endObj = new Date(endDate);
+    endObj.setHours(0, 0, 0, 0);
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    // 3. เช็ค: ห้ามเลือกวันที่ผ่านมาแล้ว
     if (startObj < now) {
       setSearchError("ไม่สามารถจองรถย้อนหลังได้ครับ");
       return;
     }
 
+    // 4. เช็ค: วันคืนรถต้องเป็นวันถัดไปจากวันรับรถ
     if (startObj >= endObj) {
-      setSearchError("ระบุวันที่ไม่ถูกต้อง! วันและเวลาคืนรถต้องมากกว่าวันรับรถครับ");
+      setSearchError("ระบุวันที่ไม่ถูกต้อง! วันคืนรถต้องเป็นวันถัดไปจากวันรับรถครับ");
       return;
     }
 
-    const diffTime = endObj.getTime() - startObj.getTime();
-    if (diffTime < 24 * 60 * 60 * 1000) {
-      setSearchError("ต้องเช่ารถขั้นต่ำ 1 วัน (24 ชั่วโมง) ครับ");
-      return;
-    }
-
-    // ผ่านทุกเงื่อนไข (ไม่ต้องเช็คล็อกอิน) -> พาไปหน้า /cars พร้อมส่งค่า
+    // 5. ผ่านทุกเงื่อนไข -> ไปหน้า /cars
     router.push(`/cars?location=${location}&start=${startDate}&end=${endDate}`);
   };
 
@@ -184,7 +185,7 @@ export default function Home() {
             <div className="flex-1 w-full px-5 py-3 border-b md:border-b-0 md:border-r border-blue-100">
               <label className="block text-xs text-blue-600 font-bold mb-1 uppercase tracking-wider">วัน-เวลารับรถ</label>
               <input
-                type="datetime-local"
+                type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="w-full text-blue-950 bg-transparent outline-none cursor-pointer font-medium"
@@ -194,7 +195,7 @@ export default function Home() {
             <div className="flex-1 w-full px-5 py-3">
               <label className="block text-xs text-blue-600 font-bold mb-1 uppercase tracking-wider">วัน-เวลาคืนรถ</label>
               <input
-                type="datetime-local"
+                type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 className="w-full text-blue-950 bg-transparent outline-none cursor-pointer font-medium"
