@@ -52,9 +52,9 @@ type ErrorResponse = {
 };
 
 const periodOptions: Array<{ value: Period; label: string }> = [
-  { value: "daily", label: "รายวัน (30 วันล่าสุด)" },
-  { value: "weekly", label: "รายสัปดาห์ (เลือกเดือน)" },
-  { value: "monthly", label: "รายเดือน (12 เดือนล่าสุด)" },
+  { value: "daily", label: "รายวัน" },
+  { value: "weekly", label: "รายเดือน)" },
+  { value: "monthly", label: "รายปั" },
 ];
 
 const numberFmt = new Intl.NumberFormat("th-TH");
@@ -169,9 +169,9 @@ export default function ManagerReportsPage() {
     () =>
       isDailyProvinceView
         ? (report?.provinceBookings ?? []).map((item) => ({
-            label: item.province,
-            bookings: item.bookings,
-          }))
+          label: item.province,
+          bookings: item.bookings,
+        }))
         : chartData,
     [isDailyProvinceView, report?.provinceBookings, chartData]
   );

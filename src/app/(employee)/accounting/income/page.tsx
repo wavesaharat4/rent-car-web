@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
-  Wallet, Plus, Download, Calendar, RefreshCw, Search, X, Save, CheckCircle2,
+  Wallet, Plus, Download, Calendar, RefreshCw, Search, X, Save, CheckCircle2, Clock, Check, Eye, ChevronUp, ChevronDown, ArrowUpDown, AlertCircle
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -25,6 +25,24 @@ type IncomeRow = {
   tranAmount: number;
   tranDate: string | null;
   tranDetail: string;
+};
+
+type PendingPaymentRow = {
+  payID: number;
+  bookID: number;
+  payMethod: string;
+  payStatus: string;
+  payAmount: number;
+  payImage: string | null;
+  payReference: string | null;
+  senderName: string | null;
+  payTime: string | null;
+  payNote: string | null;
+  bookStatus: string;
+  bookStart: string;
+  bookEnd: string;
+  cusFN: string;
+  cusLN: string;
 };
 
 type IncomeForm = {
@@ -107,6 +125,30 @@ export default function AccountingIncomePage() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<IncomeForm>(initialForm);
 
+  // --- State ของ Pending Payments ---
+  const [pendingItems, setPendingItems] = useState<PendingPaymentRow[]>([]);
+  const [loadingPending, setLoadingPending] = useState(false);
+  const [actioning, setActioning] = useState<number | null>(null);
+  const [showSlipUrl, setShowSlipUrl] = useState<string | null>(null);
+  const [pendingSort, setPendingSort] = useState<"desc" | "asc">("desc");
+
+  // --- State สำหรับ Confirm Action ---
+  const [confirmModal, setConfirmModal] = useState<{ payID: number, action: "approve" | "reject" } | null>(null);
+
+  // --- State สำหรับ Sort ตารางรายรับ ---
+  type SortKey = "tranID" | "tranDate" | "tranCategory" | "tranDetail" | "tranAmount";
+  const [sortKey, setSortKey] = useState<SortKey>("tranDate");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortOrder(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortOrder("desc");
+    }
+  }
+
   // --- ตัวกรองเดือน/ปี สำหรับกราฟ ---
   const now = new Date();
   const [filterYear, setFilterYear] = useState(now.getFullYear());
@@ -139,6 +181,36 @@ export default function AccountingIncomePage() {
     () => filteredIncomes.reduce((sum, row) => sum + row.tranAmount, 0),
     [filteredIncomes]
   );
+
+  const sortedIncomes = useMemo(() => {
+    return [...filteredIncomes].sort((a, b) => {
+      let valA: any = a[sortKey];
+      let valB: any = b[sortKey];
+      
+      if (sortKey === "tranDate") {
+        valA = new Date(valA || 0).getTime();
+        valB = new Date(valB || 0).getTime();
+      } else if (sortKey === "tranAmount" || sortKey === "tranID") {
+        valA = Number(valA);
+        valB = Number(valB);
+      } else {
+        valA = String(valA || "").toLowerCase();
+        valB = String(valB || "").toLowerCase();
+      }
+
+      if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+      if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [filteredIncomes, sortKey, sortOrder]);
+
+  const sortedPendingItems = useMemo(() => {
+    return [...pendingItems].sort((a, b) => {
+      const timeA = new Date(a.payTime || 0).getTime();
+      const timeB = new Date(b.payTime || 0).getTime();
+      return pendingSort === "desc" ? timeB - timeA : timeA - timeB;
+    });
+  }, [pendingItems, pendingSort]);
 
   // --- สร้างข้อมูลกราฟรายวัน ---
   const chartData = useMemo(() => {
@@ -186,7 +258,62 @@ export default function AccountingIncomePage() {
     }
   }
 
-  useEffect(() => { loadIncomes(); }, []);
+  async function loadPending() {
+    setLoadingPending(true);
+    try {
+      const res = await fetch("/api/accounting/income/pending", { cache: "no-store" });
+      const json = await res.json();
+      if (res.ok && json.ok) {
+        setPendingItems(json.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load pending payments", err);
+    } finally {
+      setLoadingPending(false);
+    }
+  }
+
+  async function loadAll() {
+    await Promise.all([loadIncomes(), loadPending()]);
+  }
+
+  useEffect(() => { loadAll(); }, []);
+
+  // =============================================================
+  // ✅ โฟลว: อนุมัติ/ปฏิเสธ Payment
+  // =============================================================
+  function confirmActionPrompt(payID: number, action: "approve" | "reject") {
+    setConfirmModal({ payID, action });
+  }
+
+  async function executeAction() {
+    if (!confirmModal) return;
+    const { payID, action } = confirmModal;
+    setConfirmModal(null); // ปิด Modal ทันที 
+
+    if (!empID) { setError("ไม่พบรหัสพนักงาน กรุณาเข้าสู่ระบบใหม่"); return; }
+    
+    setActioning(payID);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch("/api/accounting/income/pending", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payID, action, empID }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.message || "ทำรายการไม่สำเร็จ");
+      
+      setSuccess(`✅ ${action === "approve" ? "อนุมัติ" : "ปฏิเสธ"} รายการเรียบร้อยแล้ว`);
+      await loadAll();
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      setError(err.message || "ทำรายการไม่สำเร็จ");
+    } finally {
+      setActioning(null);
+    }
+  }
 
   // =============================================================
   // 💾 บันทึกรายรับใหม่ลง DB
@@ -215,7 +342,7 @@ export default function AccountingIncomePage() {
       setSuccess(`✅ บันทึกรายรับสำเร็จ (ID: ${json.tranID ?? "-"})`);
       setForm(initialForm());
       setShowModal(false);
-      await loadIncomes();
+      await loadAll();
       setTimeout(() => setSuccess(null), 4000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "เพิ่มรายรับไม่สำเร็จ");
@@ -229,7 +356,7 @@ export default function AccountingIncomePage() {
   // =============================================================
   function exportCsv() {
     const headers = ["TranID", "วันที่", "ประเภท", "จำนวนเงิน", "รายละเอียด"];
-    const rows = filteredIncomes.map((row) => [
+    const rows = sortedIncomes.map((row) => [
       row.tranID, row.tranDate || "", row.tranCategory || "", row.tranAmount, row.tranDetail || "",
     ]);
     const csv = [headers.join(","), ...rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
@@ -269,8 +396,8 @@ export default function AccountingIncomePage() {
           <button onClick={exportCsv} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2.5 rounded-xl font-bold transition shadow-sm">
             <Download size={16} /> Export CSV
           </button>
-          <button onClick={loadIncomes} disabled={loading} className="flex items-center justify-center w-10 h-10 bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-slate-50 shadow-sm transition">
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          <button onClick={loadAll} disabled={loading || loadingPending} className="flex items-center justify-center w-10 h-10 bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-slate-50 shadow-sm transition">
+            <RefreshCw size={16} className={loading || loadingPending ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
@@ -283,6 +410,84 @@ export default function AccountingIncomePage() {
       )}
       {error && !showModal && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-rose-700 text-sm font-bold shadow-sm">{error}</div>
+      )}
+
+      {/* ===== รายการรอตรวจสอบ (Pending Payments) ===== */}
+      {pendingItems.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
+          <div className="bg-amber-50 px-5 py-4 border-b border-amber-200 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+            <h2 className="text-amber-800 font-black flex items-center gap-2">
+              <Clock size={20} className="text-amber-600" />
+              รายการรอตรวจสอบยืนยันยอดเงิน ({pendingItems.length})
+            </h2>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-amber-700">เรียงตามวันที่โอน:</label>
+              <select value={pendingSort} onChange={(e) => setPendingSort(e.target.value as "desc"|"asc")} 
+                className="bg-white border border-amber-200 text-sm font-bold text-slate-700 px-2 py-1.5 rounded-lg outline-none cursor-pointer shadow-sm">
+                <option value="desc">ใหม่ล่าสุดก่อน</option>
+                <option value="asc">เก่าสุดก่อน</option>
+              </select>
+            </div>
+          </div>
+          <div className="p-5">
+            <div className="space-y-4">
+              {sortedPendingItems.map(item => (
+                <div key={item.payID} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-white hover:border-amber-300 hover:shadow-md transition">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-black text-slate-800 text-lg">BKN-{item.bookID}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-black tracking-wider ${
+                        item.payMethod === 'slip' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-green-100 text-green-700 border border-green-200'
+                      }`}>
+                        {item.payMethod}
+                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-black tracking-wider ${
+                        item.payStatus === 'approved' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 
+                        item.payStatus === 'rejected' ? 'bg-rose-100 text-rose-700 border border-rose-200' : 
+                        'bg-amber-100 text-amber-700 border border-amber-200'
+                      }`}>
+                        Pay: {item.payStatus}
+                      </span>
+                      <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-2 py-0.5 rounded uppercase font-black tracking-wider">
+                        Book: {item.bookStatus}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-600 font-medium flex items-center gap-2">
+                      <span className="font-bold text-slate-700">ลูกค้า:</span> {item.cusFN} {item.cusLN} 
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1.5 font-medium flex items-center gap-2 flex-wrap">
+                      <span className="bg-slate-100 px-2 py-1 rounded text-slate-600 border border-slate-200">
+                        <span className="font-bold">โอนเมื่อ:</span> {formatDateTime(item.payTime)}
+                      </span>
+                      {item.payReference && (
+                        <span className="bg-slate-100 px-2 py-1 rounded text-slate-600 border border-slate-200">
+                          <span className="font-bold">Ref:</span> {item.payReference}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-2xl font-black text-emerald-600 mb-2 mt-2 md:mt-0">฿{item.payAmount.toLocaleString()}</p>
+                    <div className="flex items-center justify-end gap-2 flex-wrap">
+                      {item.payImage && (
+                        <button onClick={() => setShowSlipUrl(item.payImage!)} className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 transition shadow-sm">
+                          <Eye size={16} /> ดูสลิป
+                        </button>
+                      )}
+                      <button onClick={() => confirmActionPrompt(item.payID, "reject")} disabled={actioning === item.payID} className="flex items-center gap-1.5 px-3 py-2 bg-white border border-rose-200 rounded-lg text-sm font-bold text-rose-600 hover:bg-rose-50 transition shadow-sm">
+                        <X size={16} /> ปฏิเสธ
+                      </button>
+                      <button onClick={() => confirmActionPrompt(item.payID, "approve")} disabled={actioning === item.payID} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 rounded-lg text-sm font-bold text-white hover:bg-emerald-700 transition shadow-md">
+                        {actioning === item.payID ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} strokeWidth={3} />}
+                        ยืนยันเข้าบัญชี
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ===== 3 การ์ดสรุป ===== */}
@@ -365,18 +570,28 @@ export default function AccountingIncomePage() {
           <table className="w-full text-left text-sm text-slate-600">
             <thead className="bg-slate-100 text-slate-700 text-[11px] uppercase font-black tracking-wider">
               <tr>
-                <th className="px-6 py-4">รหัส</th>
-                <th className="px-6 py-4">วันที่</th>
-                <th className="px-6 py-4">ประเภท</th>
-                <th className="px-6 py-4">รายละเอียด</th>
-                <th className="px-6 py-4 text-right">จำนวนเงิน</th>
+                <th className="px-6 py-4 cursor-pointer hover:bg-slate-200 transition" onClick={() => handleSort("tranID")}>
+                  <div className="flex items-center gap-1">รหัส {sortKey === "tranID" ? (sortOrder === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ArrowUpDown size={14} className="text-slate-400" />}</div>
+                </th>
+                <th className="px-6 py-4 cursor-pointer hover:bg-slate-200 transition" onClick={() => handleSort("tranDate")}>
+                  <div className="flex items-center gap-1">วันที่ {sortKey === "tranDate" ? (sortOrder === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ArrowUpDown size={14} className="text-slate-400" />}</div>
+                </th>
+                <th className="px-6 py-4 cursor-pointer hover:bg-slate-200 transition" onClick={() => handleSort("tranCategory")}>
+                  <div className="flex items-center gap-1">ประเภท {sortKey === "tranCategory" ? (sortOrder === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ArrowUpDown size={14} className="text-slate-400" />}</div>
+                </th>
+                <th className="px-6 py-4 cursor-pointer hover:bg-slate-200 transition" onClick={() => handleSort("tranDetail")}>
+                  <div className="flex items-center gap-1">รายละเอียด {sortKey === "tranDetail" ? (sortOrder === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ArrowUpDown size={14} className="text-slate-400" />}</div>
+                </th>
+                <th className="px-6 py-4 text-right cursor-pointer hover:bg-slate-200 transition" onClick={() => handleSort("tranAmount")}>
+                  <div className="flex items-center justify-end gap-1">จำนวนเงิน {sortKey === "tranAmount" ? (sortOrder === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ArrowUpDown size={14} className="text-slate-400" />}</div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {!loading && filteredIncomes.length === 0 && (
-                <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-500 font-medium">ไม่พบข้อมูลรายรับ</td></tr>
+              {!loading && sortedIncomes.length === 0 && (
+                <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-500 font-medium whitespace-nowrap">ไม่พบข้อมูลรายรับที่ค้นหา</td></tr>
               )}
-              {filteredIncomes.map((row) => (
+              {sortedIncomes.map((row) => (
                 <tr key={row.tranID} className="hover:bg-blue-50/50 transition">
                   <td className="px-6 py-4 font-bold text-slate-800">INC-{row.tranID}</td>
                   <td className="px-6 py-4 font-medium text-slate-500">{formatDateTime(row.tranDate)}</td>
@@ -430,6 +645,57 @@ export default function AccountingIncomePage() {
                   {saving ? (<><RefreshCw className="animate-spin" size={18} /> กำลังบันทึก...</>) : (<><Save size={18} /> บันทึกรายรับ</>)}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Modal ดูสลิป (ถ้ามี) ===== */}
+      {showSlipUrl && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowSlipUrl(null)}>
+          <div className="bg-white p-2 rounded-2xl max-w-md w-full relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowSlipUrl(null)} className="absolute -top-4 -right-4 bg-white text-slate-500 hover:text-rose-500 rounded-full p-2 shadow-lg transition"><X size={20} /></button>
+            <img src={showSlipUrl} alt="Slip" className="w-full h-auto rounded-xl object-contain max-h-[80vh]" />
+          </div>
+        </div>
+      )}
+
+      {/* ===== Custom Confirm Modal ===== */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className={`px-6 py-5 flex items-center justify-center gap-3 border-b border-slate-100 ${
+              confirmModal.action === "approve" ? "bg-emerald-50" : "bg-rose-50"
+            }`}>
+              {confirmModal.action === "approve" ? (
+                <CheckCircle2 size={24} className="text-emerald-600" />
+              ) : (
+                <AlertCircle size={24} className="text-rose-600" />
+              )}
+              <h2 className="text-lg font-black text-slate-800">ยืนยันการทำรายการ</h2>
+            </div>
+            <div className="p-6 text-center space-y-2">
+              <p className="text-sm font-medium text-slate-600">
+                คุณแน่ใจหรือไม่ว่าต้องการ <strong className={confirmModal.action === "approve" ? "text-emerald-600" : "text-rose-600"}>
+                  {confirmModal.action === "approve" ? "อนุมัติ" : "ปฏิเสธ"}
+                </strong> รายการนี้?
+              </p>
+              {confirmModal.action === "approve" && (
+                <p className="text-xs text-slate-500">เงินก้อนนี้จะถูกบันทึกเข้าบัญชีเป็นรายรับทันที</p>
+              )}
+            </div>
+            <div className="flex gap-3 px-6 pb-6 w-full">
+              <button onClick={() => setConfirmModal(null)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition">
+                ยกเลิก
+              </button>
+              <button 
+                onClick={executeAction} 
+                className={`flex-1 py-2.5 rounded-xl font-bold text-white transition shadow-md ${
+                  confirmModal.action === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"
+                }`}
+              >
+                ยืนยันแน่นอน
+              </button>
             </div>
           </div>
         </div>

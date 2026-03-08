@@ -177,7 +177,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
                         className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl text-sm font-bold bg-white/5 text-white hover:bg-red-500 hover:text-white transition-all duration-300 border border-transparent hover:border-red-400 hover:shadow-lg hover:shadow-red-500/20"
                     >
                         <LogOut size={18} />
-                        <span className="tracking-wide">ออกจากระบบปลอดภัย</span>
+                        <span className="tracking-wide">ออกจากระบบ</span>
                     </button>
                 </div>
             </aside>
