@@ -360,7 +360,10 @@ export default function AccountingIncomePage() {
       row.tranID, row.tranDate || "", row.tranCategory || "", row.tranAmount, row.tranDetail || "",
     ]);
     const csv = [headers.join(","), ...rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    
+    // 🌟 แก้ไข: เติม "\uFEFF" เข้าไปข้างหน้าตัวแปร csv
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -386,7 +389,7 @@ export default function AccountingIncomePage() {
             จัดการรายรับ (Income)
           </h1>
           <p className="text-slate-500 text-sm mt-2 font-medium">
-            ข้อมูลรายรับจริงจากตาราง Transaction (tranType = income)
+            ข้อมูลรายรับจริงจากตาราง Transaction
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

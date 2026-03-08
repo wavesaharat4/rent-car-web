@@ -78,7 +78,7 @@ export default function CSCustomersPage() {
                         <Users className="text-blue-600" size={32} />
                         จัดการข้อมูลลูกค้า (Customers)
                     </h1>
-                    <p className="text-slate-500 text-sm mt-2 font-medium">เบิ่งประวัติลูกค้า ให้บริการและดูแลฐานข้อมูลลูกค้าหลักเด้อ</p>
+                    
                 </div>
             </div>
 

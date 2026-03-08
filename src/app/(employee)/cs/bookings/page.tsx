@@ -123,7 +123,7 @@ export default function CSBookingsPage() {
                     <CalendarDays className="text-blue-600" size={32} />
                     จัดการการจองของลูกค้า
                 </h1>
-                <p className="text-slate-500 text-sm mt-2 font-medium">ดูแลใบจอง คอนเฟิร์มบิล และเบิ่งภาพรวมการเช่ารถทั้งหมดเด้อ</p>
+                <p className="text-slate-500 text-sm mt-2 font-medium">ดูแลใบจอง คอนเฟิร์มบิล </p>
             </div>
 
             <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">

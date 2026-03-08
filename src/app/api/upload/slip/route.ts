@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 // ===================================================================
-// 📌 POST /api/upload/promotion — อัพโหลดรูปโปรโมชั่นไปเก็บที่ Supabase Storage
+// 📌 POST /api/upload/slip — อัพโหลดรูปสลิปไปเก็บที่ Supabase Storage
 // ===================================================================
 
 export async function POST(req: Request) {
@@ -22,22 +22,20 @@ export async function POST(req: Request) {
 
         if (!(file instanceof File)) {
             return NextResponse.json(
-                { ok: false, message: "ไม่พบไฟล์รูปโปรโมชั่น" },
+                { ok: false, message: "ไม่พบไฟล์รูปสลิป" },
                 { status: 400 }
             );
         }
 
-        // 🌟 เปลี่ยนชื่อโฟลเดอร์และชื่อไฟล์ (promo_1709012345678.jpg)
+        // ตั้งชื่อไฟล์ไม่ให้ซ้ำ (slip_1709012345678.jpg)
         const ext = file.name.split(".").pop() || "jpg";
-        const fileName = `promotions/promo_${Date.now()}.${ext}`; 
-        
+        const fileName = `slips/slip_${Date.now()}.${ext}`;
         const encodedBucket = encodeURIComponent(bucket);
         const encodedPath = encodeURIComponent(fileName);
 
         const uploadUrl = `${supabaseUrl}/storage/v1/object/${encodedBucket}/${encodedPath}`;
         const arrayBuffer = await file.arrayBuffer();
 
-        // ยิง API อัปโหลดรูปไปที่ Supabase
         const uploadRes = await fetch(uploadUrl, {
             method: "POST",
             headers: {
@@ -52,12 +50,12 @@ export async function POST(req: Request) {
         if (!uploadRes.ok) {
             const msg = await uploadRes.text();
             return NextResponse.json(
-                { ok: false, message: `อัปโหลดรูปโปรโมชั่นไม่สำเร็จ: ${msg}` },
+                { ok: false, message: `อัปโหลดสลิปไม่สำเร็จ: ${msg}` },
                 { status: 500 }
             );
         }
 
-        // สร้าง Public URL สำหรับเข้าถึงรูปภาพ
+        // สร้าง Public URL สำหรับเข้าถึงรูปสลิป
         const publicUrl = `${supabaseUrl}/storage/v1/object/public/${encodedBucket}/${encodedPath}`;
         return NextResponse.json({ ok: true, url: publicUrl });
     } catch (err: any) {

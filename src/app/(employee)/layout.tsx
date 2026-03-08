@@ -31,7 +31,9 @@ const getMenuItems = (role: string) => {
     // 1. ผู้ดูแลระบบ (System Admin)
     if (role === "ADMIN") {
         menus.push(
-            { name: "จัดการสิทธิ์ผู้ใช้", path: "/admin/users", icon: <Shield size={20} /> }
+            { name: "จัดการสิทธิ์ผู้ใช้", path: "/admin/users", icon: <Shield size={20} /> },
+            { name: "ข้อมูลลูกค้า", path: "/cs/customers", icon: <Users size={20} /> },
+            { name: "จัดการรายละเอียดรถ", path: "/panel/cars", icon: <Wrench size={20} /> }
         );
     }
 
@@ -39,6 +41,7 @@ const getMenuItems = (role: string) => {
     if (role === "MANAGER") {
         menus.push(
             { name: "ประมวลผลรายงานรวม", path: "/manager/reports", icon: <BarChart3 size={20} /> }
+                   
         );
     }
 
@@ -67,15 +70,6 @@ const getMenuItems = (role: string) => {
             { name: "รายงานรายได้", path: "/accounting/income", icon: <Wallet size={20} /> },
             { name: "รายงานรายจ่าย", path: "/accounting/expenses", icon: <Receipt size={20} /> },
             { name: "รายการชำระเงิน", path: "/accounting/payments", icon: <CreditCard size={20} /> }
-        );
-    }
-
-    // 6. ระบบการเงิน (Finance)
-    if (role === "FINANCE") {
-        menus.push(
-            { name: "ข้อมูลร้านค้า", path: "/finance/shop", icon: <Building2 size={20} /> },
-            { name: "ข้อมูลคำสั่งซื้อ", path: "/finance/orders", icon: <ShoppingCart size={20} /> },
-            { name: "จัดการบิลชำระเงิน", path: "/finance/payments", icon: <CreditCard size={20} /> }
         );
     }
 
