@@ -320,9 +320,6 @@ export default function PanelCarsPage() {
             <Wrench className="text-blue-600" size={32} />
             จัดการรายละเอียดรถ (Vehicle Panel)
           </h1>
-          <p className="text-slate-500 text-sm mt-2 font-medium">
-            ดึงจาก DB จริง แก้ไข/บันทึก/ปลดระวางได้เลย
-          </p>
 
           {error && (
             <div className="mt-3 text-sm font-bold text-rose-600 bg-rose-50 border border-rose-200 px-3 py-2 rounded-xl">
