@@ -54,7 +54,6 @@ export default function PanelCarsPage() {
   const [libraryImages, setLibraryImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const [extra, setExtra] = useState<Record<number, { odo?: string; nextMaint?: string }>>({});
   const [openAdd, setOpenAdd] = useState(false);
   const [newCarImageFile, setNewCarImageFile] = useState<File | null>(null);
   const [newCarExistingPicture, setNewCarExistingPicture] = useState("");
@@ -324,7 +323,7 @@ export default function PanelCarsPage() {
             จัดการรายละเอียดรถ (Vehicle Panel)
           </h1>
           <p className="text-slate-500 text-sm mt-2 font-medium">
-            ดึงจาก DB จริง แก้ไข/บันทึก/ปลดระวางได้เลย (ODO/เช็คระยะเป็นข้อมูลเสริมจนกว่าจะเพิ่มคอลัมน์ใน DB)
+            ดึงจาก DB จริง แก้ไข/บันทึก/ปลดระวางได้เลย
           </p>
 
           {error && (
@@ -678,35 +677,6 @@ export default function PanelCarsPage() {
                     type="text"
                     value={s(car.carProvince)}
                     onChange={(e) => updateCarLocal(car.carID, { carProvince: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
-                    เลขไมล์สะสม (ODO) *ยังไม่ผูก DB*
-                  </label>
-                  <input
-                    type="text"
-                    value={extra[car.carID]?.odo ?? ""}
-                    onChange={(e) =>
-                      setExtra((p) => ({ ...p, [car.carID]: { ...p[car.carID], odo: e.target.value } }))
-                    }
-                    placeholder="เช่น 45,000 km"
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
-                    วันเช็คระยะครั้งถัดไป *ยังไม่ผูก DB*
-                  </label>
-                  <input
-                    type="date"
-                    value={extra[car.carID]?.nextMaint ?? ""}
-                    onChange={(e) =>
-                      setExtra((p) => ({ ...p, [car.carID]: { ...p[car.carID], nextMaint: e.target.value } }))
-                    }
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
                   />
                 </div>
