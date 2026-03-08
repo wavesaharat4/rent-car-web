@@ -88,16 +88,14 @@ export default function PanelCarsPage() {
       const res = await fetch("/api/cars", { cache: "no-store" });
       const json = await res.json();
 
-      // 🌟 จุดที่แก้: เช็คว่าถ้าเป็น Array ตรงๆ ก็ใช้งานได้เลย แต่ถ้าเป็นแบบของเพื่อนก็ให้ดึง .data มาใช้
       let carsData = [];
       if (Array.isArray(json)) {
-        carsData = json; // แบบของคุณ
+        carsData = json; 
       } 
       else {
         throw new Error(json.message || "โหลดข้อมูลไม่สำเร็จ");
       }
 
-      // ✅ normalize: กัน carID/empID เป็น string หรือ null
       const normalized: CarRow[] = carsData.map((r: any) => ({
         carID: toNum(r.carID),
         empID: toNum(r.empID),
@@ -570,8 +568,7 @@ export default function PanelCarsPage() {
                 </div>
 
                 <div className="text-xs font-bold text-slate-500">
-                  VIN: <span className="text-slate-700">{car.carVIN ?? "-"}</span> • ราคา/วัน:{" "}
-                  <span className="text-slate-700">{car.carPrice ?? "-"}</span>
+                  VIN: <span className="text-slate-700">{car.carVIN ?? "-"}</span>
                 </div>
                 {car.carPicture && (
                   <a href={car.carPicture} target="_blank" rel="noreferrer" className="inline-block mt-1">
@@ -677,6 +674,19 @@ export default function PanelCarsPage() {
                     type="text"
                     value={s(car.carProvince)}
                     onChange={(e) => updateCarLocal(car.carID, { carProvince: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                {/* 🌟 เพิ่มช่องแก้ไข ราคา/วัน (carPrice) ไว้ข้างๆ จังหวัด */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                    ราคา/วัน (carPrice)
+                  </label>
+                  <input
+                    type="number"
+                    value={s(car.carPrice)}
+                    onChange={(e) => updateCarLocal(car.carID, { carPrice: numOrNull(e.target.value) })}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm text-sm font-bold text-slate-700"
                   />
                 </div>
