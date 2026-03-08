@@ -268,8 +268,6 @@ export default function Home() {
 
               {/* Overlay ไล่สีดำบางๆ ให้ดูมีมิติ */}
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/20 to-transparent pointer-events-none"></div>
-
-              {/* ป้าย Floating Badge ซ้อนบนวิดีโอ */}
               
             </div>
 
@@ -559,11 +557,12 @@ export default function Home() {
                 {/* 🌟 3. กรอบใส่รูปภาพ */}
                 <div className="relative z-10 w-full max-w-[500px] lg:max-w-[600px] aspect-[16/9] lg:scale-110 transition-transform duration-500 group-hover:scale-125 lg:group-hover:scale-[1.2]">
                   <Image
-                    src="/images/benz (3).png"
+                    src="https://bzkhhkqkausplbsjsyay.supabase.co/storage/v1/object/public/phumjai%20rent/benz%20(3).png"
                     alt="PhumJai Rent Premium Car"
                     fill
                     className="object-contain drop-shadow-[0_15px_15px_rgba(0,0,0,0.4)]"
                     sizes="(max-width: 768px) 100vw, 50vw"
+                    unoptimized={true}
                   />
                 </div>
               </div>
