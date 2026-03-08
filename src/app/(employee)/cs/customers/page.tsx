@@ -118,8 +118,8 @@ export default function CSCustomersPage() {
 
                                     <div className="mb-4">
                                         <span className={`px-3 py-1 text-xs font-black tracking-widest rounded-full border shadow-sm uppercase ${cust.cusStatus === 'VIP' ? 'bg-amber-100 text-amber-600 border-amber-200' :
-                                                cust.cusStatus === 'Member' ? 'bg-blue-100 text-blue-600 border-blue-200' :
-                                                    'bg-slate-100 text-slate-600 border-slate-200'
+                                            cust.cusStatus === 'Member' ? 'bg-blue-100 text-blue-600 border-blue-200' :
+                                                'bg-slate-100 text-slate-600 border-slate-200'
                                             }`}>
                                             {cust.cusStatus === 'VIP' ? 'VIP' : cust.cusStatus === 'Member' ? 'MEMBER' : 'NEW'}
                                         </span>
@@ -140,7 +140,7 @@ export default function CSCustomersPage() {
                                         href={`/cs/customers/${cust.cusID}`}
                                         className="w-full mt-auto py-2.5 rounded-xl border-2 border-slate-100 text-slate-600 font-bold hover:bg-slate-50 hover:text-blue-600 hover:border-blue-100 transition flex justify-center items-center gap-2"
                                     >
-                                        <ShieldCheck size={18} /> ดูประวัติเต็มๆ
+                                        <ShieldCheck size={18} /> ดูประวัติ
                                     </Link>
                                 </div>
                             );

@@ -366,14 +366,9 @@ export default function AccountingBookingPage() {
           </div>
           {/* สรุปยอดด้านล่างกราฟ */}
           <div className="mt-4 flex flex-wrap gap-8 justify-center pt-4 border-t border-slate-100">
- 
             <div className="text-center">
-              <p className="text-emerald-500 text-[10px] font-bold uppercase tracking-wider">รายได้รวม</p>
-              <p className="text-xl font-black text-emerald-600 mt-1">฿{totalApproved.toLocaleString()}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-rose-500 text-[10px] font-bold uppercase tracking-wider">รายจ่ายรวม</p>
-              <p className="text-xl font-black text-rose-500 mt-1">฿{(totalVal - totalApproved).toLocaleString()}</p>
+              <p className="text-emerald-600 text-[11px] font-bold uppercase tracking-wider">ยอดจองทั้งหมด (Booking)</p>
+              <p className="text-2xl font-black text-emerald-600 mt-1">฿{totalVal.toLocaleString()}</p>
             </div>
           </div>
         </div>
